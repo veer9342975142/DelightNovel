@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DelightNovel - Free Multilingual Webnovel Reader & Publisher</title>
+    <title>DelightNovel - Free Webnovel Reader & Publisher</title>
+    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Tailwind Configuration for Dark Mode
@@ -12,10 +13,10 @@
             theme: {
                 extend: {
                     colors: {
-                        // UPDATED: Primary dark background is now pitch black
-                        'primary-dark': '#000000',   // Pitch Black
-                        // UPDATED: Secondary dark for cards/containers is very dark gray
-                        'secondary-dark': '#111111', // Very Dark Gray
+                        // Using a pitch black background for the body
+                        'body-dark': '#000000',
+                        'primary-dark': '#1e293b',   // Slate-800
+                        'secondary-dark': '#334155', // Slate-700
                         'text-light': '#f8fafc',     // Slate-50
                         'text-dark': '#0f172a',      // Slate-900
                         'accent': '#6366f1',         // Indigo-500
@@ -30,778 +31,570 @@
         
         body {
             font-family: 'Inter', sans-serif;
-            transition: background-color 0.3s, color 0.3s;
+            background-color: #000000; /* Pitch Black Background */
+            color: #f8fafc;
+            min-height: 100vh;
         }
-        .novel-card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            cursor: pointer;
+
+        /* Custom scrollbar for novel content */
+        #novel-display-content::-webkit-scrollbar,
+        #novel-content-textarea::-webkit-scrollbar {
+            width: 8px;
+            background-color: #1e293b;
+            border-radius: 4px;
         }
-        .novel-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.3);
+
+        #novel-display-content::-webkit-scrollbar-thumb,
+        #novel-content-textarea::-webkit-scrollbar-thumb {
+            background-color: #334155;
+            border-radius: 4px;
         }
+
         .novel-content-text {
             font-family: 'Merriweather', serif;
-            line-height: 1.7;
-            white-space: pre-wrap; /* Preserves formatting including newlines */
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
-        /* Custom styles for dark/light mode consistency - UPDATED for black background */
-        .dark .bg-white { background-color: #111111; }
-        .dark .text-gray-800 { color: #f8fafc; }
-        .dark .text-gray-700 { color: #cbd5e1; }
-        .dark .text-gray-600 { color: #94a3b8; }
-        .dark .border-gray-200 { border-color: #475569; }
-        .dark .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -2px rgba(0,0,0,0.2); }
-        .dark .bg-gray-50 { background-color: #000000; }
-
-        /* Google Translate Widget Styling Fixes */
-        #google_translate_element {
-            display: inline-block;
-            margin-left: 1rem;
-            vertical-align: middle;
-        }
-        .goog-te-gadget-simple {
-            background-color: transparent !important;
-            border: none !important;
-            color: inherit !important;
-        }
-        .goog-te-combo {
-            background-color: var(--secondary-dark) !important;
-            color: var(--text-light) !important;
-            border-radius: 0.5rem;
-            padding: 0.25rem 0.5rem;
-        }
-        /* Hide the Google Translate branding */
-        .goog-logo-link { display: none !important; }
-        .goog-te-gadget { height: 20px !important; overflow: hidden !important; }
     </style>
 </head>
-<body class="min-h-screen bg-text-light dark:bg-primary-dark text-text-dark dark:text-text-light">
+<body class="bg-body-dark text-text-light p-4 md:p-8">
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <!-- Main Title and Navigation -->
+    <header class="mb-8 border-b border-indigo-500/50 pb-4">
+        <h1 class="text-4xl font-extrabold text-white text-center">
+            DelightNovel <span class="text-accent text-lg font-light">Free Publishing & Reader</span>
+        </h1>
+    </header>
+
+    <main class="max-w-6xl mx-auto">
         
-        // --- GLOBAL FIREBASE VARIABLES (MANDATORY USE) ---
-        // Application ID provided by the environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // Firebase configuration provided by the environment
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        // Initial authentication token provided by the environment
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        // --------------------------------------------------
-
-        let db;
-        let auth;
-        let userId = '';
-        let currentNovelContent = '';
-        const speechSynthesizer = window.speechSynthesis; // Global browser speech object
-        let currentUtterance = null; // To hold the current browser speech instance
-
-        // Gemini API configuration - Kept for Summary Feature
-        const apiKey = ""; 
-
-        // --- Utility Functions for Gemini API ---
-
-        // Function with exponential backoff for all Gemini API calls (Kept for Summary)
-        async function retryFetch(url, options, retries = 3) {
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const response = await fetch(url, options);
-                    if (!response.ok) {
-                        if (response.status === 429 && i < retries - 1) { // Rate limit
-                            const delay = Math.pow(2, i) * 1000;
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                            continue;
-                        }
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response;
-                } catch (error) {
-                    if (i === retries - 1) throw error;
-                    const delay = Math.pow(2, i) * 1000;
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-            }
-        }
-
-        // REMOVED: base64ToArrayBuffer (Gemini TTS utility)
-        // REMOVED: pcmToWav (Gemini TTS utility)
-
-        // --- Core Application Functions ---
-        
-        function getNovelsCollectionRef() {
-            // Path for public and shared application data
-            const collectionPath = `/artifacts/${appId}/public/data/novels`;
-            return collection(db, collectionPath);
-        }
-
-        // Initialization (Auth and Listener)
-        async function initFirebase() {
-            try {
-                if (Object.keys(firebaseConfig).length === 0) {
-                    console.error("Firebase config is missing. Using placeholder data.");
-                    return; 
-                }
-
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                let userCredential;
-                if (initialAuthToken) {
-                    // Sign in with the provided custom token
-                    userCredential = await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    // Fallback to anonymous sign-in
-                    userCredential = await signInAnonymously(auth);
-                }
-                
-                userId = userCredential.user.uid;
-                setupNovelListener();
-
-            } catch (error) {
-                console.error("Error during Firebase initialization or sign-in:", error);
-                userId = crypto.randomUUID(); // Fallback ID
-                if (db) setupNovelListener();
-            }
-        }
-
-        // Real-time Novel Listener
-        function setupNovelListener() {
-            if (!db) return;
-            const novelsRef = getNovelsCollectionRef();
-            // Fetch all novels to allow client-side filtering for private/scheduled status
-            onSnapshot(query(novelsRef), (snapshot) => {
-                const novels = [];
-                snapshot.forEach((doc) => {
-                    novels.push({ id: doc.id, ...doc.data() });
-                });
-                renderNovels(novels);
-            }, (error) => {
-                console.error("Error listening to novels collection:", error);
-                document.getElementById('novel-list').innerHTML = `<p class="text-red-500 text-center col-span-full">Failed to load novels: ${error.message}</p>`;
-            });
-        }
-        
-        // --- Novel Rendering ---
-
-        function renderNovelCard(novel) {
-            const novelData = JSON.stringify(novel);
-            const contentPreview = novel.content.substring(0, 300) + (novel.content.length > 300 ? '...' : '');
+        <!-- Action Bar -->
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
+            <h2 id="novel-list-title" class="text-2xl font-semibold text-text-light"></h2>
             
-            const now = new Date();
-            // Check if the novel is private or scheduled for the future
-            const isPrivate = novel.private === true;
-            // Note: Firebase Timestamps need converting before comparison
-            const isScheduled = novel.publishDate && new Date(novel.publishDate.seconds * 1000) > now;
+            <div class="flex space-x-3 w-full sm:w-auto">
+                <!-- Add New Novel Button -->
+                <button onclick="document.getElementById('add-novel-modal').classList.remove('hidden')"
+                    class="flex-grow sm:flex-grow-0 bg-accent text-white font-bold py-2 px-6 rounded-lg shadow-md hover:bg-indigo-600 transition duration-200">
+                    + Publish New Novel
+                </button>
+            </div>
+        </div>
+
+        <!-- Novel List Container -->
+        <div id="novel-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Novel Cards will be inserted here -->
+        </div>
+
+        <!-- Notification/Message Box (for modal-style confirmation/alert) -->
+        <div id="message-box" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+            <div class="bg-primary-dark p-6 rounded-xl shadow-2xl max-w-sm w-full border border-accent/50 transform transition-all duration-300 scale-100">
+                <h3 id="message-box-title" class="text-xl font-bold text-accent mb-3"></h3>
+                <p id="message-box-content" class="text-text-light mb-5"></p>
+                <div class="flex justify-end space-x-3">
+                    <button id="message-box-cancel" onclick="closeMessageBox()" class="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition hidden">Cancel</button>
+                    <button id="message-box-confirm" onclick="confirmMessageBox()" class="px-4 py-2 bg-accent text-white font-semibold rounded-lg hover:bg-indigo-600 transition">OK</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal for Adding/Publishing a New Novel -->
+    <div id="add-novel-modal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-40 p-4">
+        <div class="bg-primary-dark p-6 md:p-8 rounded-xl w-full max-w-lg shadow-2xl transform transition-all duration-300">
+            <h2 class="text-2xl font-bold text-text-light mb-6 border-b border-slate-700 pb-2">Publish New Webnovel</h2>
+            <form id="add-novel-form" onsubmit="handleNovelSubmit(event)">
+                <div class="mb-4">
+                    <label for="novel-title" class="block text-sm font-medium text-text-light mb-1">Title</label>
+                    <input type="text" id="novel-title" required 
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
+                </div>
+                <div class="mb-4">
+                    <label for="novel-author" class="block text-sm font-medium text-text-light mb-1">Author Name</label>
+                    <input type="text" id="novel-author" required 
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
+                </div>
+                <div class="mb-4">
+                    <label for="novel-tags" class="block text-sm font-medium text-text-light mb-1">Tags (e.g., Fantasy, Sci-Fi, Action - comma separated)</label>
+                    <input type="text" id="novel-tags" 
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
+                </div>
+                <div class="mb-6">
+                    <label for="novel-content-textarea" class="block text-sm font-medium text-text-light mb-1">Chapter 1 Content</label>
+                    <textarea id="novel-content-textarea" required rows="10" 
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light novel-content-text focus:border-accent focus:ring focus:ring-accent/50 transition resize-y"></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="document.getElementById('add-novel-modal').classList.add('hidden')"
+                        class="px-6 py-2 border border-slate-600 text-text-light rounded-lg hover:bg-slate-700 transition">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        class="px-6 py-2 bg-accent text-white font-semibold rounded-lg hover:bg-indigo-600 transition">
+                        Publish Novel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for Viewing Novel Details and Reading -->
+    <div id="view-novel-modal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-40 p-4">
+        <div class="bg-primary-dark p-6 md:p-8 rounded-xl w-full max-w-5xl shadow-2xl h-[95vh] flex flex-col">
             
-            // Is this the current user's draft?
-            const isMyDraft = (isPrivate || isScheduled) && novel.publisherId === userId;
+            <!-- Modal Header -->
+            <div class="flex justify-between items-start border-b border-accent/50 pb-4 mb-4">
+                <div>
+                    <h2 id="view-novel-title" class="text-3xl font-extrabold text-white"></h2>
+                    <p class="text-md text-slate-400 mt-1">by <span id="view-novel-author" class="font-semibold text-accent"></span></p>
+                    <p id="view-novel-id" class="text-xs text-slate-500 mt-2"></p>
+                </div>
+                <div class="flex space-x-3">
+                    <button onclick="deleteNovel()" title="Delete Novel"
+                        class="p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18 6h-2v-1c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v1H6v2h12v-2zM8 7V5h8v2H8zM8 9v10c0 1.103.897 2 2 2h4c1.103 0 2-.897 2-2V9H8z"/>
+                        </svg>
+                    </button>
+                    <button onclick="document.getElementById('view-novel-modal').classList.add('hidden')"
+                        class="p-2 bg-secondary-dark text-text-light rounded-full hover:bg-slate-600 transition shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="m16.192 6.344-4.192 4.192-4.192-4.192-1.416 1.416 4.192 4.192-4.192 4.192 1.416 1.416 4.192-4.192 4.192 4.192 1.416-1.416-4.192-4.192 4.192-4.192z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
 
-            let statusTag = '';
-            if (isScheduled) {
-                const date = new Date(novel.publishDate.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                statusTag = `<span class="bg-yellow-500 text-yellow-900 text-xs font-semibold px-2 py-0.5 rounded-full mr-2">Scheduled (${date})</span>`;
-            } else if (isPrivate) {
-                statusTag = `<span class="bg-red-500 text-red-900 text-xs font-semibold px-2 py-0.5 rounded-full mr-2">Private Draft</span>`;
-            }
+            <!-- Reading Panel -->
+            <div class="flex-grow overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            // Cover Image logic (uses Base64 data stored in Firestore)
-            const coverImage = novel.coverImage ? 
-                `<img src="${novel.coverImage}" alt="Novel Cover for ${novel.title}" class="w-full h-40 object-cover rounded-t-xl shadow-md">` : 
-                `<div class="w-full h-40 bg-indigo-900 flex items-center justify-center rounded-t-xl text-lg font-bold text-indigo-300 p-4 text-center">NO COVER UPLOADED</div>`;
+                <!-- Control Panel (Left/Top) -->
+                <div class="lg:col-span-1 space-y-6">
 
-            // Card style changes if it's a private/scheduled draft
-            const cardClasses = `novel-card p-6 rounded-xl shadow-lg flex flex-col justify-between ${isMyDraft ? 'bg-red-900/50 border-t-4 border-red-400' : 'bg-secondary-dark border-t-4 border-accent'}`;
-
-            return `
-                <div class="${cardClasses}" 
-                     data-novel='${novelData.replace(/'/g, '&#39;')}'
-                     onclick="openNovelModal(JSON.parse(this.dataset.novel))">
-                    
-                    <div class="mb-4">${coverImage}</div>
-
-                    <div>
-                        <h2 class="text-2xl font-bold text-text-light mb-2">${novel.title} ${statusTag}</h2>
-                        <p class="text-indigo-400 font-medium mb-4">By: ${novel.author}</p>
-                        <span class="inline-block bg-primary-dark text-slate-300 text-xs font-semibold px-3 py-1 rounded-full mb-4">${novel.genre}</span>
+                    <!-- Translation Section -->
+                    <div class="bg-secondary-dark p-4 rounded-xl shadow-inner border border-slate-700">
+                        <h3 class="text-xl font-semibold text-text-light mb-3 border-b border-slate-600 pb-2">Multilingual Tools</h3>
+                        <p class="text-sm text-slate-400 mb-3">Use the Google Translate widget below to instantly translate the novel content.</p>
                         
-                        <div class="border-t border-slate-600 pt-4">
-                            <h3 class="text-lg font-semibold text-slate-300 mb-2">First Chapter Preview:</h3>
-                            <div class="text-slate-400 line-clamp-4 leading-relaxed text-sm novel-content-text">
-                                ${contentPreview}
-                            </div>
+                        <!-- Google Translate Widget Placeholder (Manual implementation is required, but we show the required script) -->
+                        <div id="google_translate_element" class="mt-4 p-2 bg-primary-dark rounded-lg border border-slate-600">
+                            <!-- This will be populated by the Google Translate script -->
                         </div>
                     </div>
-                    <div class="mt-4 pt-4 border-t border-dashed border-slate-600 text-sm text-slate-400">
-                        <p>Published by User ID: <span class="font-mono text-xs">${novel.publisherId.substring(0, 8)}...</span></p>
-                        <p>Date: ${novel.publishedAt ? new Date(novel.publishedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
-                        <button class="mt-3 w-full bg-accent text-white py-2 rounded-lg text-sm font-semibold hover:bg-indigo-600 transition duration-200">
-                            Read Full Novel
-                        </button>
+
+                    <!-- TTS Section (Free, Browser Native) -->
+                    <div class="bg-secondary-dark p-4 rounded-xl shadow-inner border border-slate-700">
+                        <h3 class="text-xl font-semibold text-text-light mb-3 border-b border-slate-600 pb-2">Text-to-Speech (Free)</h3>
+                        <p class="text-sm text-slate-400 mb-3">Uses your browser's native text-to-speech engine. Audio volume controlled by device/browser.</p>
+                        <div class="space-y-3">
+                            <!-- Voice Selector -->
+                            <select id="tts-voice-select" class="w-full px-3 py-2 border border-slate-600 rounded-lg bg-primary-dark text-text-light">
+                                <!-- Options populated by JS -->
+                            </select>
+                            
+                            <!-- Play Button -->
+                            <button id="tts-play-button" onclick="toggleTtsPlayback(this)" 
+                                class="w-full bg-green-600 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-green-700 transition">
+                                Play Audio 🔊
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+                
+                <!-- Content Display (Right/Bottom) -->
+                <div class="lg:col-span-2 flex flex-col">
+                    <h3 id="translated-text-label" class="text-xl font-semibold text-text-light mb-4 border-b border-slate-700 pb-2">Novel Content</h3>
+                    <div id="novel-display-content" class="flex-grow overflow-y-auto p-4 border border-slate-700 rounded-lg bg-primary-dark novel-content-text text-slate-200">
+                        <!-- Novel content goes here -->
                     </div>
                 </div>
-            `;
-        }
-        
-        function renderNovels(novels) {
-            const container = document.getElementById('novel-list');
-            const header = document.getElementById('novel-list-header');
-            
-            // UPDATED: All novels are visible to everyone, no filtering based on private/schedule.
-            const allNovels = novels.sort((a, b) => {
-                // Sort by latest published date first (in memory sorting)
-                const dateA = a.publishedAt ? a.publishedAt.seconds : 0;
-                const dateB = b.publishedAt ? b.publishedAt.seconds : 0;
-                return dateB - dateA;
-            });
 
-            container.innerHTML = '';
-
-            // Update the header based on the count and render all of them.
-            if (allNovels.length === 0) {
-                header.textContent = '[No webnovels have been posted. Be the first!]';
-                container.innerHTML = '<p class="text-center text-slate-500 col-span-full py-10">No novels have been saved yet. Start publishing!</p>';
-            } else {
-                header.textContent = `All Works (${allNovels.length} posted)`;
-                allNovels.forEach(novel => {
-                    container.innerHTML += renderNovelCard(novel);
-                });
-            }
-
-            // REMOVED: Logic for rendering private/scheduled drafts separately is deleted.
-        }
-
-        // --- Dark/Light Mode Toggle Logic ---
-
-        window.toggleDarkMode = () => {
-            const htmlElement = document.documentElement;
-            const isDark = htmlElement.classList.contains('dark');
-            if (isDark) {
-                htmlElement.classList.remove('dark');
-                localStorage.setItem('theme', 'light');
-            } else {
-                htmlElement.classList.add('dark');
-                localStorage.setItem('theme', 'dark');
-            }
-        };
-
-        function applySavedTheme() {
-            const savedTheme = localStorage.getItem('theme');
-            const htmlElement = document.documentElement;
-            
-            if (savedTheme === 'light') {
-                htmlElement.classList.remove('dark');
-            } else if (savedTheme === 'dark') {
-                htmlElement.classList.add('dark');
-            }
-            
-            const isDark = htmlElement.classList.contains('dark');
-            const toggle = document.getElementById('mode-toggle');
-            if (toggle) toggle.checked = isDark;
-        }
-
-        // --- Browser TTS Logic (Free) ---
-        
-        window.closeNovelModal = () => {
-            stopSpeech(); // Browser TTS is the only speech engine now
-            // stopGeminiSpeech(); // Removed
-            document.getElementById('novel-reader-modal').classList.add('hidden');
-        };
-        
-        function stopSpeech() {
-            if (speechSynthesizer.speaking) {
-                speechSynthesizer.cancel();
-            }
-            currentUtterance = null;
-        }
-        
-        function findBestVoice(requestedName) {
-            const voices = speechSynthesizer.getVoices();
-            if (voices.length === 0) return null;
-
-            if (requestedName.includes('David')) {
-                return voices.find(v => v.name.toLowerCase().includes('male') || v.lang.startsWith('en-US')) || voices[0];
-            }
-            if (requestedName.includes('Lisa')) {
-                return voices.find(v => v.name.toLowerCase().includes('female') || v.lang.startsWith('en-GB')) || voices[1] || voices[0];
-            }
-            return voices[0];
-        }
-
-        function populateVoices() {
-            const voiceSelect = document.getElementById('tts-voice-select');
-            voiceSelect.innerHTML = '';
-            
-            if (speechSynthesizer.getVoices().length === 0) {
-                speechSynthesizer.onvoiceschanged = () => populateVoices();
-                return;
-            }
-            
-            const customVoices = [
-                'David (Browser Voice)', 
-                'Lisa (Browser Voice)', 
-                'Default System Voice'
-            ];
-
-            customVoices.forEach(name => {
-                const option = document.createElement('option');
-                option.value = name;
-                option.textContent = name;
-                voiceSelect.appendChild(option);
-            });
-        }
-
-        window.toggleAudioPlayback = (button) => {
-            if (!speechSynthesizer) {
-                showMessage("Your browser does not support Text-to-Speech.", 'error');
-                return;
-            }
-
-            if (speechSynthesizer.speaking) {
-                speechSynthesizer.cancel();
-                button.textContent = 'Play Audio';
-                return;
-            }
-
-            const contentToSpeak = document.getElementById('novel-display-content').textContent;
-            const voiceNameSelection = document.getElementById('tts-voice-select').value;
-            const speed = parseFloat(document.getElementById('tts-speed-slider').value);
-
-            if (!contentToSpeak || contentToSpeak.startsWith('Loading')) {
-                showMessage("Please ensure novel content is loaded before playing audio.", 'warning');
-                return;
-            }
-            
-            const selectedVoice = findBestVoice(voiceNameSelection);
-            
-            currentUtterance = new SpeechSynthesisUtterance(contentToSpeak);
-            currentUtterance.voice = selectedVoice;
-            currentUtterance.rate = speed;
-            
-            currentUtterance.onstart = () => {
-                button.textContent = 'Stop Playback';
-            };
-            
-            currentUtterance.onend = () => {
-                button.textContent = 'Play Audio';
-            };
-
-            speechSynthesizer.speak(currentUtterance);
-        };
-
-        window.updateSpeedLabel = (value) => {
-            document.getElementById('tts-speed-label').textContent = `${value}x`;
-        };
-        
-        // REMOVED: All Gemini TTS Logic (populateGeminiVoices, stopGeminiSpeech, toggleGeminiAudioPlayback)
-
-        // --- LLM (Summary) Logic ---
-
-        window.generateSummary = async () => {
-            const content = currentNovelContent;
-            const summaryDiv = document.getElementById('novel-summary-output');
-            const summaryButton = document.getElementById('summary-button');
-
-            if (!content || content.length < 50) {
-                summaryDiv.innerHTML = '<p class="text-yellow-500">Content too short to summarize (min 50 chars).</p>';
-                return;
-            }
-
-            summaryButton.disabled = true;
-            summaryButton.textContent = 'Generating Summary...';
-            summaryDiv.innerHTML = '<p class="text-slate-400">Loading...</p>';
-
-            const summaryPrompt = `Provide a concise, engaging summary of the following web novel chapter content in three to four sentences: \n\nCONTENT: """${content}"""`;
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-
-            const payload = {
-                contents: [{ parts: [{ text: summaryPrompt }] }],
-                systemInstruction: {
-                    parts: [{ text: "You are a professional web novel marketing assistant. Your goal is to write a summary that hooks the reader." }]
-                },
-            };
-
-            try {
-                const response = await retryFetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const result = await response.json();
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-                if (text) {
-                    summaryDiv.innerHTML = `<p class="text-slate-200">${text}</p>`;
-                } else {
-                    summaryDiv.innerHTML = '<p class="text-red-500">Could not generate summary. Please try again.</p>';
-                    console.error("Gemini API response missing text:", result);
-                }
-
-            } catch (error) {
-                summaryDiv.innerHTML = `<p class="text-red-500">Error generating summary: ${error.message}</p>`;
-                console.error("Error during summary generation:", error);
-            } finally {
-                summaryButton.disabled = false;
-                summaryButton.textContent = 'Summarize Chapter ✨';
-            }
-        };
-
-
-        // --- File Reading (Base64) ---
-        function readFileAsBase64(file) {
-            return new Promise((resolve, reject) => {
-                if (!file) {
-                    resolve(null);
-                    return;
-                }
-                // Check for file size limit (e.g., 500KB) to prevent Firestore errors
-                const maxSize = 500 * 1024; // 500 KB
-                if (file.size > maxSize) {
-                    reject(new Error("Cover image is too large. Please select an image under 500KB."));
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-                reader.readAsDataURL(file);
-            });
-        }
-        
-        // --- Add Novel (Updated for cover, privacy, scheduling) ---
-        async function addNovel(event) {
-            event.preventDefault();
-            
-            if (!db) {
-                showMessage("Database not initialized. Please check console for errors.", 'error');
-                return;
-            }
-
-            const form = event.target;
-            const title = form.novelTitle.value.trim();
-            const author = form.novelAuthor.value.trim();
-            const genre = form.novelGenre.value;
-            const content = form.novelContent.value.trim();
-            const coverFile = form.novelCover.files[0];
-            const isPrivate = form.novelPrivate.checked;
-            const scheduleDateString = form.novelScheduleDate.value;
-            let publishDate = null;
-            
-            if (scheduleDateString) {
-                publishDate = new Date(scheduleDateString);
-                if (isNaN(publishDate.getTime())) {
-                     showMessage("Invalid schedule date provided. Please use the date picker.", 'warning');
-                     return;
-                }
-            }
-
-            if (!title || !author || !genre || !content) {
-                showMessage("Please fill out the required fields.", 'warning');
-                return;
-            }
-
-            const submitButton = form.querySelector('button[type="submit"]');
-            submitButton.disabled = true;
-            submitButton.textContent = 'Processing...';
-            
-            try {
-                let coverImageBase64 = null;
-                if (coverFile) {
-                    // Convert file to Base64 string for storage in Firestore
-                    coverImageBase64 = await readFileAsBase64(coverFile);
-                }
-
-                await addDoc(getNovelsCollectionRef(), {
-                    title: title,
-                    author: author,
-                    genre: genre,
-                    content: content,
-                    publisherId: userId,
-                    publishedAt: serverTimestamp(),
-                    coverImage: coverImageBase64, // Base64 string
-                    private: isPrivate,          // Boolean for private draft
-                    publishDate: publishDate     // Date object for scheduling (will convert to Timestamp)
-                });
-
-                showMessage(`Novel "${title}" published successfully! ${isPrivate ? '(Saved as Private Draft)' : ''}`, 'success');
-                form.reset();
-                setView('list');
-
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                // Check if error might be due to document size limit (1MB) if cover image is large
-                const errorMessage = e.message.includes('Exceeded maximum allowed network request size') || e.message.includes('too large') ? 
-                    "Error publishing novel: The cover image or content might be too large. Please use a smaller image file (under 500KB recommended)." : 
-                    `Error publishing novel: ${e.message}`;
-
-                showMessage(errorMessage, 'error');
-            } finally {
-                submitButton.disabled = false;
-                submitButton.textContent = 'Publish Novel';
-            }
-        }
-
-
-        // --- Helper Functions (showMessage, setView, init on Load) ---
-
-        function showMessage(message, type = 'info') {
-            const messageBox = document.getElementById('message-box');
-            messageBox.textContent = message;
-            messageBox.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'bg-yellow-100', 'text-green-800', 'text-red-800', 'text-yellow-800');
-            
-            // Reapply base classes to handle dark mode styling
-            messageBox.className = 'p-3 mb-4 rounded-lg text-sm font-medium max-w-xl mx-auto';
-
-            if (type === 'success') {
-                messageBox.classList.add('bg-green-100', 'text-green-800', 'dark:bg-green-900/50', 'dark:text-green-300');
-            } else if (type === 'error') {
-                messageBox.classList.add('bg-red-100', 'text-red-800', 'dark:bg-red-900/50', 'dark:text-red-300');
-            } else {
-                 messageBox.classList.add('bg-yellow-100', 'text-yellow-800', 'dark:bg-yellow-900/50', 'dark:text-yellow-300');
-            }
-            
-            setTimeout(() => {
-                messageBox.classList.add('hidden');
-            }, 5000);
-        }
-
-        window.setView = (viewName) => {
-            const listView = document.getElementById('novel-list-view');
-            const publishView = document.getElementById('publish-novel-view');
-            const navList = document.getElementById('nav-list');
-            const navPublish = document.getElementById('nav-publish');
-
-            if (!listView || !publishView || !navList || !navPublish) {
-                console.error("Critical: Navigation elements missing from DOM.");
-                return;
-            }
-            
-            // Ensure both views are hidden before showing the target one
-            listView.classList.add('hidden');
-            publishView.classList.add('hidden');
-
-            const activeClasses = ['text-accent', 'border-accent'];
-            const inactiveClasses = ['text-slate-400', 'border-transparent', 'hover:text-accent'];
-
-            // Reset navigation styles
-            navList.classList.remove(...activeClasses, ...inactiveClasses);
-            navPublish.classList.remove(...activeClasses, ...inactiveClasses);
-
-            if (viewName === 'list') {
-                listView.classList.remove('hidden');
-                navList.classList.add(...activeClasses);
-                navPublish.classList.add('border-transparent', 'text-slate-400', 'hover:text-accent');
-            } else if (viewName === 'publish') {
-                publishView.classList.remove('hidden');
-                navPublish.classList.add(...activeClasses);
-                navList.classList.add('border-transparent', 'text-slate-400', 'hover:text-accent');
-            }
-        };
-
-        window.openNovelModal = (novel) => {
-            currentNovelContent = novel.content;
-            document.getElementById('modal-novel-title').textContent = novel.title;
-            document.getElementById('modal-novel-author').textContent = `By: ${novel.author}`;
-            document.getElementById('novel-display-content').textContent = novel.content;
-            
-            // Reset ALL speech/audio states
-            stopSpeech(); // Browser TTS is the only speech engine now
-            // stopGeminiSpeech(); // Removed
-            
-            document.getElementById('tts-play-button').textContent = 'Play Audio';
-            // Removed Gemini TTS button resets
-
-            // Reset summary output
-            document.getElementById('novel-summary-output').innerHTML = '<p class="text-slate-400 text-sm">Click the button below to generate a summary.</p>';
-            document.getElementById('summary-button').disabled = false;
-            document.getElementById('summary-button').textContent = 'Summarize Chapter ✨';
-
-
-            populateVoices(); // Browser voices
-            // populateGeminiVoices(); // Removed
-
-            document.getElementById('novel-reader-modal').classList.remove('hidden');
-        };
-
-        window.onload = () => {
-            applySavedTheme();
-            initFirebase();
-            document.getElementById('publish-form').addEventListener('submit', addNovel);
-            document.getElementById('nav-list').addEventListener('click', () => setView('list'));
-            document.getElementById('nav-publish').addEventListener('click', () => setView('publish'));
-            
-            populateVoices();
-            // populateGeminiVoices(); // Removed
-            
-            // Set default view to list, as requested.
-            setView('list'); 
-        };
-    </script>
+            </div>
+        </div>
+    </div>
     
+    <!-- Google Translate Script (Must be outside type="module" script block) -->
     <script type="text/javascript">
+        // Function required by Google Translate widget
         function googleTranslateElementInit() {
             new google.translate.TranslateElement({
-                pageLanguage: 'en',
+                pageLanguage: 'en', // Assuming English is the base language
                 layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
                 autoDisplay: false
             }, 'google_translate_element');
         }
     </script>
     <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
-    
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        <header class="mb-8">
-            <div class="flex justify-between items-start mb-4 flex-col sm:flex-row">
-                <h1 class="text-4xl font-extrabold text-text-dark dark:text-text-light mb-4 sm:mb-0">DelightNovel</h1>
-                
-                <div class="flex items-center space-x-4">
-                    <div class="flex items-center space-x-2">
-                        <span class="text-xs text-text-dark dark:text-slate-400">Light</span>
-                        <label for="mode-toggle" class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="mode-toggle" onchange="toggleDarkMode()" class="sr-only peer" checked>
-                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-accent"></div>
-                        </label>
-                        <span class="text-xs text-text-dark dark:text-slate-400">Dark</span>
-                    </div>
-                    <div id="google_translate_element" class="text-sm"></div>
-                </div>
-            </div>
+
+    <!-- Application Logic -->
+    <script>
+        // --- Globals ---
+        let currentUserId = 'user-' + (localStorage.getItem('userId') || crypto.randomUUID());
+        let currentNovels = [];
+        let activeNovel = null; // Stores the currently viewed novel object
+        let speechSynthesisUtterance = null;
+        let speechSynth = window.speechSynthesis;
+        let pendingAction = null; // For confirmation box
+
+        // Constants
+        const LOCAL_STORAGE_KEY = 'delightNovels';
+        const VOICE_STORAGE_KEY = 'ttsVoiceName';
+
+        /**
+         * Initializes the application.
+         * Switches from external database to local storage.
+         */
+        function initApp() {
+            // Set the unique user ID (persisted across sessions)
+            localStorage.setItem('userId', currentUserId.split('-')[1]);
+            console.log("App Initialized. Using local storage for data persistence.");
+            console.log("Local User ID (for debugging):", currentUserId);
+
+            // Set the novel list title and load data
+            document.getElementById('novel-list-title').textContent = "My Published Novels";
+            loadAndRenderNovels();
             
-            <div class="border-b border-gray-200 dark:border-slate-700">
-                <nav class="flex space-x-8">
-                    <button id="nav-list" class="pb-3 border-b-2 border-accent text-accent font-medium transition duration-150">
-                        View All Novels
-                    </button>
-                    <button id="nav-publish" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-accent font-medium transition duration-150">
-                        Publish A Novel
-                    </button>
-                </nav>
-            </div>
-        </header>
+            // Setup TTS voices
+            setupTtsVoices();
+        }
 
-        <div id="message-box" class="p-3 mb-4 rounded-lg text-sm font-medium max-w-xl mx-auto hidden"></div>
+        // --- Local Storage CRUD Operations ---
 
-        <div id="novel-list-view">
-            <h2 id="novel-list-header" class="text-3xl font-bold text-text-dark dark:text-text-light mb-6">Latest Works</h2>
-            <div id="novel-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div class="col-span-full text-center py-10 text-slate-500">Loading novels...</div>
-            </div>
-        </div>
+        /**
+         * Loads all novels from local storage.
+         * @returns {Array} List of novel objects.
+         */
+        function loadNovelsFromStorage() {
+            try {
+                const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                console.error("Error loading novels from localStorage:", e);
+                return [];
+            }
+        }
 
-        <div id="publish-novel-view" class="hidden max-w-2xl mx-auto bg-secondary-dark p-8 rounded-xl shadow-2xl border border-slate-700">
-            <h2 class="text-3xl font-bold text-accent mb-6 text-center">Submit Your Webnovel Translation</h2>
-            <p class="text-slate-400 text-center mb-8">Share your translated works with the community.</p>
+        /**
+         * Saves the entire novel array back to local storage.
+         * @param {Array} novels - The array of novel objects to save.
+         */
+        function saveNovelsToStorage(novels) {
+            try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(novels));
+            } catch (e) {
+                console.error("Error saving novels to localStorage:", e);
+                showMessageBox("Save Error", "Could not save novel data. Local storage might be full or blocked.", false);
+            }
+        }
 
-            <form id="publish-form" class="space-y-6">
-                <label for="novelCover" class="block text-sm font-medium text-slate-300 mb-1">Cover Image (Small file size recommended - Max 500KB)</label>
-                <input type="file" id="novelCover" name="novelCover" accept="image/*" class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-accent hover:file:bg-indigo-100">
+        /**
+         * Loads data from local storage and renders the novel cards.
+         * This replaces the Firestore onSnapshot listener.
+         */
+        function loadAndRenderNovels() {
+            currentNovels = loadNovelsFromStorage();
+            renderNovels(currentNovels);
+        }
 
-                <input type="text" id="novelTitle" name="novelTitle" placeholder="Novel Title" required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <input type="text" id="novelAuthor" name="novelAuthor" placeholder="Translator / Author Name" required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
-                    <select id="novelGenre" name="novelGenre" required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
-                        <option value="" class="bg-secondary-dark">Select Genre</option>
-                        <option value="Fantasy" class="bg-secondary-dark">Fantasy</option>
-                        <option value="Sci-Fi" class="bg-secondary-dark">Sci-Fi</option>
-                        <option value="Wuxia/Xianxia" class="bg-secondary-dark">Wuxia/Xianxia</option>
-                        <option value="Romance" class="bg-secondary-dark">Romance</option>
-                        <option value="System" class="bg-secondary-dark">System</option>
-                        <option value="Mystery" class="bg-secondary-dark">Mystery</option>
-                        <option value="Other" class="bg-secondary-dark">Other</option>
-                    </select>
-                </div>
+        // --- UI Rendering Functions ---
+
+        /**
+         * Renders the novel cards based on the fetched data.
+         * @param {Array} novels - The list of novels to display.
+         */
+        function renderNovels(novels) {
+            const container = document.getElementById('novel-list-container');
+            container.innerHTML = ''; // Clear existing content
+
+            if (novels.length === 0) {
+                container.innerHTML = `
+                    <div class="lg:col-span-3 text-center p-10 bg-secondary-dark rounded-xl border border-slate-700">
+                        <p class="text-xl text-slate-400">No novels published yet.</p>
+                        <p class="text-sm text-slate-500 mt-2">Click '+ Publish New Novel' to create your first webnovel!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            novels.forEach(novel => {
+                // Ensure tags is a safe array
+                const tags = Array.isArray(novel.tags) ? novel.tags : (novel.tags || "").split(',').map(t => t.trim()).filter(t => t);
                 
-                <textarea id="novelContent" name="novelContent" rows="10" placeholder="Paste the translated content here..." required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150"></textarea>
+                const card = document.createElement('div');
+                card.className = 'bg-primary-dark p-6 rounded-xl shadow-lg border border-slate-700 hover:border-accent transition duration-200 cursor-pointer flex flex-col justify-between';
+                card.onclick = () => openNovelModal(novel.id);
                 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
+                card.innerHTML = `
                     <div>
-                        <label for="novelScheduleDate" class="block text-sm font-medium text-slate-300 mb-1">Schedule Publication Date (Optional)</label>
-                        <input type="datetime-local" id="novelScheduleDate" name="novelScheduleDate" class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
-                    </div>
-                    <div class="flex items-center justify-start sm:justify-end mt-6 sm:mt-0">
-                        <label for="novelPrivate" class="flex items-center space-x-3 cursor-pointer">
-                            <input type="checkbox" id="novelPrivate" name="novelPrivate" class="sr-only peer">
-                            <div class="relative w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-red-500"></div>
-                            <span class="text-sm font-medium text-slate-300">Save as Private Draft</span>
-                        </label>
-                    </div>
-                </div>
-                
-                <button type="submit" class="w-full bg-accent text-white font-semibold py-3 rounded-lg shadow-lg hover:bg-indigo-700 transition duration-300 transform hover:scale-[1.01]">
-                    Publish Novel
-                </button>
-            </form>
-        </div>
-
-    </div>
-
-    <div id="novel-reader-modal" class="fixed inset-0 z-50 bg-gray-900 bg-opacity-80 hidden overflow-y-auto">
-        <div class="flex items-start justify-center min-h-screen pt-12 pb-20">
-            <div class="bg-secondary-dark rounded-xl shadow-3xl w-full max-w-4xl mx-4 p-8 transform transition-all">
-                
-                <div class="flex justify-between items-start border-b border-slate-700 pb-4 mb-4">
-                    <div>
-                        <h2 id="modal-novel-title" class="text-3xl font-bold text-text-light"></h2>
-                        <p id="modal-novel-author" class="text-indigo-400 font-medium"></p>
-                    </div>
-                    <button onclick="closeNovelModal()" class="text-slate-500 hover:text-text-light transition">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
-                </div>
-                
-                <div class="grid grid-cols-1 gap-6 border-b border-slate-700 pb-6 mb-6">
-                    
-                    <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
-                        <h3 class="text-xl font-semibold text-text-light mb-2">Translation (100% Free)</h3>
-                        <p class="text-slate-400">To translate the novel, use the **Language Dropdown** at the very top of the screen. It will instantly translate the entire page into your chosen language.</p>
-                    </div>
-
-                    <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
-                        <h3 class="text-xl font-semibold text-text-light mb-2">Chapter Summary ✨</h3>
-                        <p class="text-slate-400 text-sm mb-3">Use the Gemini LLM to generate a concise summary of the current novel content.</p>
-                        <div id="novel-summary-output" class="p-3 bg-secondary-dark rounded-lg text-sm text-slate-400 mb-4">
-                            <p class="text-slate-400 text-sm">Click the button below to generate a summary.</p>
+                        <h3 class="text-2xl font-bold text-white mb-2 line-clamp-2">${novel.title}</h3>
+                        <p class="text-sm text-slate-400 mb-4">by <span class="font-semibold text-accent">${novel.author}</span></p>
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            ${tags.map(tag => `<span class="text-xs bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full">${tag}</span>`).join('')}
                         </div>
-                        <button id="summary-button" onclick="generateSummary()" class="w-full bg-orange-500 text-white font-semibold py-2 rounded-lg hover:bg-orange-600 transition">
-                            Summarize Chapter ✨
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
+                        <p class="text-xs text-slate-500">Novel ID: ${novel.id.substring(0, 8)}...</p>
+                        <button onclick="event.stopPropagation(); deleteNovel('${novel.id}')" 
+                            class="text-red-400 hover:text-red-500 transition text-sm font-medium p-1 rounded-md">
+                            Delete
                         </button>
                     </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // --- Event Handlers & Modal Logic ---
+
+        /**
+         * Handles the form submission for publishing a new novel.
+         */
+        function handleNovelSubmit(event) {
+            event.preventDefault();
+
+            const title = document.getElementById('novel-title').value.trim();
+            const author = document.getElementById('novel-author').value.trim();
+            const tagsInput = document.getElementById('novel-tags').value.trim();
+            const content = document.getElementById('novel-content-textarea').value.trim();
+
+            if (!title || !author || !content) {
+                showMessageBox("Validation Error", "Please fill in the title, author, and chapter content.", false);
+                return;
+            }
+
+            const newNovel = {
+                id: crypto.randomUUID(),
+                title: title,
+                author: author,
+                tags: tagsInput.split(',').map(t => t.trim()).filter(t => t),
+                content: content,
+                createdAt: new Date().toISOString(),
+                userId: currentUserId 
+            };
+            
+            // Add to the local array and save
+            currentNovels.unshift(newNovel);
+            saveNovelsToStorage(currentNovels);
+
+            // Close modal and refresh UI
+            document.getElementById('add-novel-modal').classList.add('hidden');
+            document.getElementById('add-novel-form').reset();
+            loadAndRenderNovels();
+            showMessageBox("Success!", "Your novel has been published successfully.", false);
+        }
+
+        /**
+         * Opens the modal to view a novel's content.
+         * @param {string} novelId - The ID of the novel to view.
+         */
+        function openNovelModal(novelId) {
+            stopTtsPlayback(); // Stop any currently playing audio
+
+            activeNovel = currentNovels.find(n => n.id === novelId);
+            if (!activeNovel) {
+                showMessageBox("Error", "Novel not found.", false);
+                return;
+            }
+
+            document.getElementById('view-novel-title').textContent = activeNovel.title;
+            document.getElementById('view-novel-author').textContent = activeNovel.author;
+            document.getElementById('view-novel-id').textContent = `ID: ${activeNovel.id}`;
+            document.getElementById('novel-display-content').textContent = activeNovel.content;
+            
+            document.getElementById('view-novel-modal').classList.remove('hidden');
+        }
+
+        /**
+         * Deletes the currently active novel after confirmation.
+         * @param {string} [novelId] - The ID of the novel to delete (optional, defaults to active novel).
+         */
+        function deleteNovel(novelId = null) {
+            stopTtsPlayback();
+
+            const idToDelete = novelId || (activeNovel ? activeNovel.id : null);
+            if (!idToDelete) {
+                showMessageBox("Error", "No novel selected for deletion.", false);
+                return;
+            }
+
+            // Set up confirmation
+            pendingAction = () => {
+                const index = currentNovels.findIndex(n => n.id === idToDelete);
+                if (index > -1) {
+                    currentNovels.splice(index, 1);
+                    saveNovelsToStorage(currentNovels);
+                    loadAndRenderNovels();
                     
-                    <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
-                        <h3 class="text-lg font-semibold text-text-light mb-3">Browser TTS (100% Free)</h3>
-                        <p class="text-slate-400 text-sm mb-3">Uses your browser's native voices (Windows Speech Synthesis on PC/similar on mobile), which may vary in quality and accent based on your device.</p>
-                        <div class="space-y-3">
-                            <select id="tts-voice-select" class="w-full px-3 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light">
-                                </select>
-                            
-                            <div class="flex items-center space-x-3">
-                                <label for="tts-speed-slider" class="text-sm text-slate-400">Speed:</label>
-                                <input type="range" id="tts-speed-slider" min="0.5" max="3.0" step="0.1" value="1.0" 
-                                       oninput="updateSpeedLabel(this.value)" class="flex-grow h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer">
-                                <span id="tts-speed-label" class="text-sm font-semibold text-indigo-400 w-10">1.0x</span>
-                            </div>
-                            
-                            <button id="tts-play-button" onclick="toggleAudioPlayback(this)" class="w-full bg-green-600 text-white font-semibold py-2 rounded-lg hover:bg-green-700 transition">
-                                Play Audio
-                            </button>
-                        </div>
-                    </div>
+                    // Close view modal if the deleted novel was being viewed
+                    if (activeNovel && activeNovel.id === idToDelete) {
+                        document.getElementById('view-novel-modal').classList.add('hidden');
+                        activeNovel = null;
+                    }
+                    showMessageBox("Deleted", "Novel removed successfully.", false);
+                } else {
+                    showMessageBox("Error", "Novel not found in database.", false);
+                }
+                pendingAction = null;
+            };
 
-                    </div>
+            showMessageBox(
+                "Confirm Deletion",
+                "Are you sure you want to permanently delete this novel? This action cannot be undone.",
+                true
+            );
+        }
+        
+        // --- Custom Message Box (Replaces alert/confirm) ---
+
+        let resolveMessageBox = null;
+
+        function showMessageBox(title, content, showCancel) {
+            return new Promise(resolve => {
+                resolveMessageBox = resolve;
+                document.getElementById('message-box-title').textContent = title;
+                document.getElementById('message-box-content').textContent = content;
+
+                const cancelBtn = document.getElementById('message-box-cancel');
+                if (showCancel) {
+                    cancelBtn.classList.remove('hidden');
+                } else {
+                    cancelBtn.classList.add('hidden');
+                }
                 
-                <div>
-                    <h3 id="translated-text-label" class="text-xl font-semibold text-text-light mb-4 border-b border-slate-700 pb-2">Novel Content (Use dropdown above to translate)</h3>
-                    <div id="novel-display-content" class="h-96 overflow-y-auto p-4 border border-slate-700 rounded-lg bg-primary-dark novel-content-text text-slate-200">
-                        </div>
-                </div>
+                document.getElementById('message-box').classList.remove('hidden');
+            });
+        }
 
-            </div>
-        </div>
-    </div>
+        function closeMessageBox() {
+            document.getElementById('message-box').classList.add('hidden');
+            if (resolveMessageBox) {
+                resolveMessageBox(false);
+                resolveMessageBox = null;
+                pendingAction = null;
+            }
+        }
+
+        function confirmMessageBox() {
+            document.getElementById('message-box').classList.add('hidden');
+            if (pendingAction) {
+                pendingAction();
+            }
+            if (resolveMessageBox) {
+                resolveMessageBox(true);
+                resolveMessageBox = null;
+            }
+        }
+
+        // --- Text-to-Speech (TTS) Logic (Free, Browser Native) ---
+
+        /**
+         * Populates the TTS voice selector dropdown.
+         */
+        function setupTtsVoices() {
+            // Wait for voices to be loaded
+            if(speechSynth.getVoices().length === 0) {
+                speechSynth.onvoiceschanged = populateVoiceList;
+            } else {
+                populateVoiceList();
+            }
+        }
+        
+        /**
+         * Fills the dropdown with available voices and selects the last used one.
+         */
+        function populateVoiceList() {
+            const selectElement = document.getElementById('tts-voice-select');
+            const storedVoiceName = localStorage.getItem(VOICE_STORAGE_KEY);
+            selectElement.innerHTML = '';
+
+            const voices = speechSynth.getVoices();
+            if (voices.length === 0) {
+                selectElement.innerHTML = '<option>No voices found.</option>';
+                return;
+            }
+            
+            let selectedIndex = 0;
+            
+            voices.forEach((voice, index) => {
+                const option = document.createElement('option');
+                option.textContent = `${voice.name} (${voice.lang})`;
+                option.value = voice.name;
+                
+                if (storedVoiceName && voice.name === storedVoiceName) {
+                    selectedIndex = index;
+                }
+
+                selectElement.appendChild(option);
+            });
+            
+            selectElement.selectedIndex = selectedIndex;
+        }
+
+        /**
+         * Starts or stops the native TTS playback.
+         * @param {HTMLElement} button - The button element that was clicked.
+         */
+        function toggleTtsPlayback(button) {
+            if (!activeNovel) return;
+
+            if (speechSynth.speaking) {
+                stopTtsPlayback();
+                return;
+            }
+
+            // Get content and selected voice
+            const content = document.getElementById('novel-display-content').textContent;
+            const voiceName = document.getElementById('tts-voice-select').value;
+            const voice = speechSynth.getVoices().find(v => v.name === voiceName);
+
+            if (!voice) {
+                showMessageBox("TTS Error", "Selected voice is not available. Please try another.", false);
+                return;
+            }
+
+            // Save selected voice preference
+            localStorage.setItem(VOICE_STORAGE_KEY, voiceName);
+
+            // Setup speech utterance
+            speechSynthesisUtterance = new SpeechSynthesisUtterance(content);
+            speechSynthesisUtterance.voice = voice;
+            speechSynthesisUtterance.rate = 1.0;
+            speechSynthesisUtterance.pitch = 1.0;
+            
+            speechSynthesisUtterance.onstart = () => {
+                button.textContent = 'Stop Audio 🛑';
+                button.classList.remove('bg-green-600', 'hover:bg-green-700');
+                button.classList.add('bg-red-600', 'hover:bg-red-700');
+            };
+
+            speechSynthesisUtterance.onend = () => {
+                stopTtsPlayback();
+            };
+
+            speechSynth.speak(speechSynthesisUtterance);
+        }
+
+        /**
+         * Stops the native TTS playback and resets the button.
+         */
+        function stopTtsPlayback() {
+            if (speechSynth.speaking) {
+                speechSynth.cancel();
+            }
+            const button = document.getElementById('tts-play-button');
+            if (button) {
+                button.textContent = 'Play Audio 🔊';
+                button.classList.remove('bg-red-600', 'hover:bg-red-700');
+                button.classList.add('bg-green-600', 'hover:bg-green-700');
+            }
+        }
+
+        // Initialize the application on page load
+        window.onload = initApp;
+
+    </script>
 </body>
 </html>
