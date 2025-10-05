@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DelightNovel - Free Multilingual Webnovel Reader & Publisher</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind Configuration for Dark Mode
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-dark': '#1e293b',   // Slate-800
+                        'secondary-dark': '#334155', // Slate-700
+                        'text-light': '#f8fafc',     // Slate-50
+                        'text-dark': '#0f172a',      // Slate-900
+                        'accent': '#6366f1',         // Indigo-500
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .novel-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+        .novel-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        .novel-content-text {
+            font-family: 'Merriweather', serif;
+            line-height: 1.7;
+            white-space: pre-wrap; /* Preserves formatting including newlines */
+        }
+        /* Custom styles for dark/light mode consistency */
+        .dark .bg-white { background-color: #334155; }
+        .dark .text-gray-800 { color: #f8fafc; }
+        .dark .text-gray-700 { color: #cbd5e1; }
+        .dark .text-gray-600 { color: #94a3b8; }
+        .dark .border-gray-200 { border-color: #475569; }
+        .dark .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -2px rgba(0,0,0,0.2); }
+        .dark .bg-gray-50 { background-color: #1e293b; }
+
+        /* Google Translate Widget Styling Fixes */
+        #google_translate_element {
+            display: inline-block;
+            margin-left: 1rem;
+            vertical-align: middle;
+        }
+        .goog-te-gadget-simple {
+            background-color: transparent !important;
+            border: none !important;
+            color: inherit !important;
+        }
+        .goog-te-combo {
+            background-color: var(--secondary-dark) !important;
+            color: var(--text-light) !important;
+            border-radius: 0.5rem;
+            padding: 0.25rem 0.5rem;
+        }
+        /* Hide the Google Translate branding */
+        .goog-logo-link { display: none !important; }
+        .goog-te-gadget { height: 20px !important; overflow: hidden !important; }
+    </style>
+</head>
+<body class="min-h-screen bg-text-light dark:bg-primary-dark text-text-dark dark:text-text-light">
+
+    <!-- Firebase Imports and Setup -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- GLOBAL FIREBASE VARIABLES (MANDATORY USE) ---
+        // Application ID provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // Firebase configuration provided by the environment
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // Initial authentication token provided by the environment
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // --------------------------------------------------
+
+        let db;
+        let auth;
+        let userId = '';
+        let currentNovelContent = '';
+        const speechSynthesizer = window.speechSynthesis; // Global browser speech object
+        let currentUtterance = null; // To hold the current browser speech instance
+
+        // Gemini API configuration
+        const apiKey = ""; 
+
+        // Gemini Voices for Advanced TTS
+        const geminiVoices = [
+            { name: "Kore (Firm)", voice: "Kore" },
+            { name: "Puck (Upbeat)", voice: "Puck" },
+            { name: "Zephyr (Bright)", voice: "Zephyr" },
+            { name: "Charon (Informative)", voice: "Charon" },
+            { name: "Fenrir (Excitable)", voice: "Fenrir" },
+            { name: "Leda (Youthful)", voice: "Leda" },
+        ];
+
+        let currentGeminiAudioSource = null;
+        let audioContext = null;
+
+        // --- Utility Functions for Gemini API ---
+
+        // Function with exponential backoff for all Gemini API calls
+        async function retryFetch(url, options, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        if (response.status === 429 && i < retries - 1) { // Rate limit
+                            const delay = Math.pow(2, i) * 1000;
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue;
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response;
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    const delay = Math.pow(2, i) * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function pcmToWav(pcmData, sampleRate) {
+            const numChannels = 1;
+            const bitDepth = 16;
+            const bytesPerSample = bitDepth / 8;
+            
+            // Create WAV structure
+            const buffer = new ArrayBuffer(44 + pcmData.length * bytesPerSample);
+            const view = new DataView(buffer);
+            
+            // RIFF identifier
+            view.setUint32(0, 0x52494646, false); // "RIFF"
+            // file length minus 8
+            view.setUint32(4, 36 + pcmData.length * bytesPerSample, true);
+            // "WAVE" format
+            view.setUint32(8, 0x57415645, false); 
+            // "fmt " chunk identifier
+            view.setUint32(12, 0x666d7420, false); 
+            // Format chunk length
+            view.setUint32(16, 16, true);
+            // Sample format (1 for PCM)
+            view.setUint16(20, 1, true);
+            // Number of channels
+            view.setUint16(22, numChannels, true);
+            // Sample rate
+            view.setUint32(24, sampleRate, true);
+            // Byte rate (SampleRate * NumChannels * BitsPerSample/8)
+            view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+            // Block align (NumChannels * BitsPerSample/8)
+            view.setUint16(32, numChannels * bytesPerSample, true);
+            // Bits per sample
+            view.setUint16(34, bitDepth, true);
+            // "data" chunk identifier
+            view.setUint32(36, 0x64617461, false);
+            // Data chunk length
+            view.setUint32(40, pcmData.length * bytesPerSample, true);
+            
+            // Write PCM data (signed 16-bit little-endian)
+            let offset = 44;
+            for (let i = 0; i < pcmData.length; i++) {
+                view.setInt16(offset, pcmData[i], true);
+                offset += 2;
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        // --- Core Application Functions ---
+        
+        function getNovelsCollectionRef() {
+            // Path for public and shared application data
+            const collectionPath = `/artifacts/${appId}/public/data/novels`;
+            return collection(db, collectionPath);
+        }
+
+        // Initialization (Auth and Listener)
+        async function initFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.error("Firebase config is missing. Using placeholder data.");
+                    return; 
+                }
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                let userCredential;
+                if (initialAuthToken) {
+                    // Sign in with the provided custom token
+                    userCredential = await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    // Fallback to anonymous sign-in
+                    userCredential = await signInAnonymously(auth);
+                }
+                
+                userId = userCredential.user.uid;
+                setupNovelListener();
+
+            } catch (error) {
+                console.error("Error during Firebase initialization or sign-in:", error);
+                userId = crypto.randomUUID(); // Fallback ID
+                if (db) setupNovelListener();
+            }
+        }
+
+        // Real-time Novel Listener
+        function setupNovelListener() {
+            if (!db) return;
+            const novelsRef = getNovelsCollectionRef();
+            // Fetch all novels to allow client-side filtering for private/scheduled status
+            onSnapshot(query(novelsRef), (snapshot) => {
+                const novels = [];
+                snapshot.forEach((doc) => {
+                    novels.push({ id: doc.id, ...doc.data() });
+                });
+                renderNovels(novels);
+            }, (error) => {
+                console.error("Error listening to novels collection:", error);
+                document.getElementById('novel-list').innerHTML = `<p class="text-red-500 text-center col-span-full">Failed to load novels: ${error.message}</p>`;
+            });
+        }
+        
+        // --- Novel Rendering ---
+
+        function renderNovelCard(novel) {
+            const novelData = JSON.stringify(novel);
+            const contentPreview = novel.content.substring(0, 300) + (novel.content.length > 300 ? '...' : '');
+            
+            const now = new Date();
+            // Check if the novel is private or scheduled for the future
+            const isPrivate = novel.private === true;
+            // Note: Firebase Timestamps need converting before comparison
+            const isScheduled = novel.publishDate && new Date(novel.publishDate.seconds * 1000) > now;
+            
+            // Is this the current user's draft?
+            const isMyDraft = (isPrivate || isScheduled) && novel.publisherId === userId;
+
+            let statusTag = '';
+            if (isScheduled) {
+                const date = new Date(novel.publishDate.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                statusTag = `<span class="bg-yellow-500 text-yellow-900 text-xs font-semibold px-2 py-0.5 rounded-full mr-2">Scheduled (${date})</span>`;
+            } else if (isPrivate) {
+                statusTag = `<span class="bg-red-500 text-red-900 text-xs font-semibold px-2 py-0.5 rounded-full mr-2">Private Draft</span>`;
+            }
+
+            // Cover Image logic (uses Base64 data stored in Firestore)
+            const coverImage = novel.coverImage ? 
+                `<img src="${novel.coverImage}" alt="Novel Cover" class="w-full h-40 object-cover rounded-t-xl shadow-md">` : 
+                `<div class="w-full h-40 bg-indigo-900 flex items-center justify-center rounded-t-xl text-lg font-bold text-indigo-300">NO COVER UPLOADED</div>`;
+
+            // Card style changes if it's a private/scheduled draft
+            const cardClasses = `novel-card p-6 rounded-xl shadow-lg flex flex-col justify-between ${isMyDraft ? 'bg-red-900/50 border-t-4 border-red-400' : 'bg-secondary-dark border-t-4 border-accent'}`;
+
+            return `
+                <div class="${cardClasses}" 
+                     data-novel='${novelData.replace(/'/g, '&#39;')}'
+                     onclick="openNovelModal(JSON.parse(this.dataset.novel))">
+                    
+                    <div class="mb-4">${coverImage}</div>
+
+                    <div>
+                        <h2 class="text-2xl font-bold text-text-light mb-2">${novel.title} ${statusTag}</h2>
+                        <p class="text-indigo-400 font-medium mb-4">By: ${novel.author}</p>
+                        <span class="inline-block bg-primary-dark text-slate-300 text-xs font-semibold px-3 py-1 rounded-full mb-4">${novel.genre}</span>
+                        
+                        <div class="border-t border-slate-600 pt-4">
+                            <h3 class="text-lg font-semibold text-slate-300 mb-2">First Chapter Preview:</h3>
+                            <div class="text-slate-400 line-clamp-4 leading-relaxed text-sm novel-content-text">
+                                ${contentPreview}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-dashed border-slate-600 text-sm text-slate-400">
+                        <p>Published by User ID: <span class="font-mono text-xs">${novel.publisherId.substring(0, 8)}...</span></p>
+                        <p>Date: ${novel.publishedAt ? new Date(novel.publishedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
+                        <button class="mt-3 w-full bg-accent text-white py-2 rounded-lg text-sm font-semibold hover:bg-indigo-600 transition duration-200">
+                            Read Full Novel
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderNovels(novels) {
+            const container = document.getElementById('novel-list');
+            const header = document.getElementById('novel-list-header');
+            
+            // 1. Filter the novels to determine public visibility
+            const now = new Date();
+            const visibleNovels = novels.filter(novel => {
+                const isPubliclyVisible = novel.private !== true;
+                // Check if novel has no publish date OR the date has passed
+                const isPublishedNow = !novel.publishDate || new Date(novel.publishDate.seconds * 1000) <= now;
+
+                return isPubliclyVisible && isPublishedNow;
+            }).sort((a, b) => {
+                // Sort by latest published date first (in memory sorting)
+                const dateA = a.publishedAt ? a.publishedAt.seconds : 0;
+                const dateB = b.publishedAt ? b.publishedAt.seconds : 0;
+                return dateB - dateA;
+            });
+
+            container.innerHTML = '';
+
+            // 2. Update the header based on the count
+            if (visibleNovels.length === 0) {
+                header.textContent = '[No new webnovels have been posted. Be the first!]';
+            } else {
+                header.textContent = `Latest Works (${visibleNovels.length} posted)`;
+                visibleNovels.forEach(novel => {
+                    container.innerHTML += renderNovelCard(novel);
+                });
+            }
+
+            // 3. Render private/scheduled novels only to the publisher (Admin View)
+            const drafts = novels.filter(novel => 
+                novel.publisherId === userId && 
+                (novel.private === true || (novel.publishDate && new Date(novel.publishDate.seconds * 1000) > now))
+            );
+            
+            if (drafts.length > 0) {
+                let draftHtml = `<h3 class="col-span-full text-xl font-bold text-red-400 mt-8 mb-4">Your Private Drafts / Scheduled Novels (${drafts.length}):</h3>`;
+                drafts.forEach(novel => {
+                    draftHtml += renderNovelCard(novel);
+                });
+                // Prepend or Append drafts based on current state
+                if (visibleNovels.length === 0) {
+                    container.innerHTML = draftHtml + '<p class="text-center text-slate-500 col-span-full py-10">Waiting for the first public novel...</p>';
+                } else {
+                    container.innerHTML += draftHtml;
+                }
+            }
+            
+            if (visibleNovels.length === 0 && drafts.length === 0) {
+                container.innerHTML = '<p class="text-center text-slate-500 col-span-full py-10">No novels have been saved yet. Start publishing!</p>';
+            }
+        }
+
+        // --- Dark/Light Mode Toggle Logic ---
+
+        window.toggleDarkMode = () => {
+            const htmlElement = document.documentElement;
+            const isDark = htmlElement.classList.contains('dark');
+            if (isDark) {
+                htmlElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                htmlElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        };
+
+        function applySavedTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const htmlElement = document.documentElement;
+            
+            if (savedTheme === 'light') {
+                htmlElement.classList.remove('dark');
+            } else if (savedTheme === 'dark') {
+                htmlElement.classList.add('dark');
+            }
+            
+            const isDark = htmlElement.classList.contains('dark');
+            const toggle = document.getElementById('mode-toggle');
+            if (toggle) toggle.checked = isDark;
+        }
+
+        // --- Browser TTS Logic (Free) ---
+        
+        window.closeNovelModal = () => {
+            stopSpeech(); // Browser TTS
+            stopGeminiSpeech(); // Gemini TTS
+            document.getElementById('novel-reader-modal').classList.add('hidden');
+        };
+        
+        function stopSpeech() {
+            if (speechSynthesizer.speaking) {
+                speechSynthesizer.cancel();
+            }
+            currentUtterance = null;
+        }
+        
+        function findBestVoice(requestedName) {
+            const voices = speechSynthesizer.getVoices();
+            if (voices.length === 0) return null;
+
+            if (requestedName.includes('David')) {
+                return voices.find(v => v.name.toLowerCase().includes('male') || v.lang.startsWith('en-US')) || voices[0];
+            }
+            if (requestedName.includes('Lisa')) {
+                return voices.find(v => v.name.toLowerCase().includes('female') || v.lang.startsWith('en-GB')) || voices[1] || voices[0];
+            }
+            return voices[0];
+        }
+
+        function populateVoices() {
+            const voiceSelect = document.getElementById('tts-voice-select');
+            voiceSelect.innerHTML = '';
+            
+            if (speechSynthesizer.getVoices().length === 0) {
+                speechSynthesizer.onvoiceschanged = () => populateVoices();
+                return;
+            }
+            
+            const customVoices = [
+                'David (Browser Voice)', 
+                'Lisa (Browser Voice)', 
+                'Default System Voice'
+            ];
+
+            customVoices.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                voiceSelect.appendChild(option);
+            });
+        }
+
+        window.toggleAudioPlayback = (button) => {
+            if (!speechSynthesizer) {
+                showMessage("Your browser does not support Text-to-Speech.", 'error');
+                return;
+            }
+
+            if (speechSynthesizer.speaking) {
+                speechSynthesizer.cancel();
+                button.textContent = 'Play Audio';
+                return;
+            }
+
+            const contentToSpeak = document.getElementById('novel-display-content').textContent;
+            const voiceNameSelection = document.getElementById('tts-voice-select').value;
+            const speed = parseFloat(document.getElementById('tts-speed-slider').value);
+
+            if (!contentToSpeak || contentToSpeak.startsWith('Loading')) {
+                showMessage("Please ensure novel content is loaded before playing audio.", 'warning');
+                return;
+            }
+            
+            const selectedVoice = findBestVoice(voiceNameSelection);
+            
+            currentUtterance = new SpeechSynthesisUtterance(contentToSpeak);
+            currentUtterance.voice = selectedVoice;
+            currentUtterance.rate = speed;
+            
+            currentUtterance.onstart = () => {
+                button.textContent = 'Stop Playback';
+            };
+            
+            currentUtterance.onend = () => {
+                button.textContent = 'Play Audio';
+            };
+
+            speechSynthesizer.speak(currentUtterance);
+        };
+
+        window.updateSpeedLabel = (value) => {
+            document.getElementById('tts-speed-label').textContent = `${value}x`;
+        };
+        
+        // --- Gemini TTS Logic (Advanced) ---
+        function populateGeminiVoices() {
+            const voiceSelect = document.getElementById('gemini-tts-voice-select');
+            voiceSelect.innerHTML = '';
+            geminiVoices.forEach(v => {
+                const option = document.createElement('option');
+                option.value = v.voice;
+                option.textContent = v.name;
+                voiceSelect.appendChild(option);
+            });
+        }
+
+        function stopGeminiSpeech() {
+            if (currentGeminiAudioSource) {
+                currentGeminiAudioSource.pause();
+                currentGeminiAudioSource = null;
+            }
+            // Revoke object URL to free up memory
+            if (window.currentGeminiAudioUrl) {
+                URL.revokeObjectURL(window.currentGeminiAudioUrl);
+                window.currentGeminiAudioUrl = null;
+            }
+        }
+
+        window.toggleGeminiAudioPlayback = async (button) => {
+            // If audio is currently playing, stop it.
+            if (currentGeminiAudioSource && !currentGeminiAudioSource.paused) {
+                stopGeminiSpeech();
+                button.textContent = 'Play Premium Audio ✨';
+                button.classList.remove('bg-red-600', 'hover:bg-red-700');
+                button.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                return;
+            }
+            
+            const contentToSpeak = document.getElementById('novel-display-content').textContent;
+            const selectedVoice = document.getElementById('gemini-tts-voice-select').value;
+            const speed = parseFloat(document.getElementById('tts-speed-slider').value); // Use same speed slider
+
+            if (!contentToSpeak || contentToSpeak.startsWith('Loading')) {
+                showMessage("Please ensure novel content is loaded before playing audio.", 'warning');
+                return;
+            }
+            
+            // Update button state (Starting)
+            button.disabled = true;
+            button.textContent = 'Loading Audio...';
+            button.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+            button.classList.add('bg-gray-500');
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+            
+            // Add speech style/rate hint to the prompt
+            const speechPrompt = `Speak the following text at ${speed}x speed in an engaging and clear tone: ${contentToSpeak}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: speechPrompt }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: selectedVoice }
+                        }
+                    }
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+
+            try {
+                const response = await retryFetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const candidatePart = result?.candidates?.[0]?.content?.parts?.[0];
+                const audioData = candidatePart?.inlineData?.data;
+                const mimeType = candidatePart?.inlineData?.mimeType;
+
+                if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
+                    // Stop any previous audio
+                    stopGeminiSpeech();
+                    
+                    // Extract sample rate from mimeType (e.g., audio/L16;rate=24000)
+                    const rateMatch = mimeType.match(/rate=(\d+)/);
+                    const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000; // Default to 24000
+                    
+                    const pcmDataBuffer = base64ToArrayBuffer(audioData);
+                    const pcm16 = new Int16Array(pcmDataBuffer);
+                    
+                    // Convert PCM to WAV Blob
+                    const wavBlob = pcmToWav(pcm16, sampleRate);
+                    const audioUrl = URL.createObjectURL(wavBlob);
+                    window.currentGeminiAudioUrl = audioUrl; // Store to revoke later
+                    
+                    // Play the audio
+                    const audio = new Audio(audioUrl);
+                    audio.play().catch(e => console.error("Audio playback error:", e));
+
+                    // Set state to track playback
+                    currentGeminiAudioSource = audio;
+
+                    audio.onended = () => {
+                        currentGeminiAudioSource = null;
+                        button.textContent = 'Play Premium Audio ✨';
+                        button.classList.remove('bg-red-600', 'hover:bg-red-700');
+                        button.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                    };
+                    
+                    // Update button state (Playing)
+                    button.textContent = 'Stop Premium Playback';
+                    button.classList.remove('bg-gray-500');
+                    button.classList.add('bg-red-600', 'hover:bg-red-700');
+
+                } else {
+                    showMessage("Failed to generate premium audio. Response format error.", 'error');
+                    console.error("Gemini TTS response error:", result);
+                }
+
+            } catch (error) {
+                showMessage(`Error generating premium audio: ${error.message}`, 'error');
+                console.error("Error during Gemini TTS generation:", error);
+            } finally {
+                button.disabled = false;
+                if (!currentGeminiAudioSource || currentGeminiAudioSource.paused) { // Only reset text if not successfully started playback
+                     button.textContent = 'Play Premium Audio ✨';
+                     button.classList.remove('bg-gray-500');
+                     button.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                }
+            }
+        };
+
+        // --- LLM (Summary) Logic ---
+
+        window.generateSummary = async () => {
+            const content = currentNovelContent;
+            const summaryDiv = document.getElementById('novel-summary-output');
+            const summaryButton = document.getElementById('summary-button');
+
+            if (!content || content.length < 50) {
+                summaryDiv.innerHTML = '<p class="text-yellow-500">Content too short to summarize (min 50 chars).</p>';
+                return;
+            }
+
+            summaryButton.disabled = true;
+            summaryButton.textContent = 'Generating Summary...';
+            summaryDiv.innerHTML = '<p class="text-slate-400">Loading...</p>';
+
+            const summaryPrompt = `Provide a concise, engaging summary of the following web novel chapter content in three to four sentences: \n\nCONTENT: """${content}"""`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: summaryPrompt }] }],
+                systemInstruction: {
+                    parts: [{ text: "You are a professional web novel marketing assistant. Your goal is to write a summary that hooks the reader." }]
+                },
+            };
+
+            try {
+                const response = await retryFetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (text) {
+                    summaryDiv.innerHTML = `<p class="text-slate-200">${text}</p>`;
+                } else {
+                    summaryDiv.innerHTML = '<p class="text-red-500">Could not generate summary. Please try again.</p>';
+                    console.error("Gemini API response missing text:", result);
+                }
+
+            } catch (error) {
+                summaryDiv.innerHTML = `<p class="text-red-500">Error generating summary: ${error.message}</p>`;
+                console.error("Error during summary generation:", error);
+            } finally {
+                summaryButton.disabled = false;
+                summaryButton.textContent = 'Summarize Chapter ✨';
+            }
+        };
+
+
+        // --- File Reading (Base64) ---
+        function readFileAsBase64(file) {
+            return new Promise((resolve, reject) => {
+                if (!file) {
+                    resolve(null);
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        // --- Add Novel (Updated for cover, privacy, scheduling) ---
+        async function addNovel(event) {
+            event.preventDefault();
+            
+            if (!db) {
+                showMessage("Database not initialized. Please check console for errors.", 'error');
+                return;
+            }
+
+            const form = event.target;
+            const title = form.novelTitle.value.trim();
+            const author = form.novelAuthor.value.trim();
+            const genre = form.novelGenre.value;
+            const content = form.novelContent.value.trim();
+            const coverFile = form.novelCover.files[0];
+            const isPrivate = form.novelPrivate.checked;
+            const scheduleDateString = form.novelScheduleDate.value;
+            let publishDate = null;
+            
+            if (scheduleDateString) {
+                publishDate = new Date(scheduleDateString);
+                if (isNaN(publishDate.getTime())) {
+                     showMessage("Invalid schedule date provided. Please use the date picker.", 'warning');
+                     return;
+                }
+            }
+
+            if (!title || !author || !genre || !content) {
+                showMessage("Please fill out the required fields.", 'warning');
+                return;
+            }
+
+            const submitButton = form.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Processing...';
+            
+            try {
+                let coverImageBase64 = null;
+                if (coverFile) {
+                    // Convert file to Base64 string for storage in Firestore
+                    coverImageBase64 = await readFileAsBase64(coverFile);
+                }
+
+                await addDoc(getNovelsCollectionRef(), {
+                    title: title,
+                    author: author,
+                    genre: genre,
+                    content: content,
+                    publisherId: userId,
+                    publishedAt: serverTimestamp(),
+                    coverImage: coverImageBase64, // Base64 string
+                    private: isPrivate,          // Boolean for private draft
+                    publishDate: publishDate     // Date object for scheduling (will convert to Timestamp)
+                });
+
+                showMessage(`Novel "${title}" published successfully! ${isPrivate ? '(Saved as Private Draft)' : ''}`, 'success');
+                form.reset();
+                setView('list');
+
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                // Check if error might be due to document size limit (1MB) if cover image is large
+                const errorMessage = e.message.includes('Exceeded maximum allowed network request size') ? 
+                    "Error publishing novel: The cover image or content might be too large. Please use a smaller image file." : 
+                    `Error publishing novel: ${e.message}`;
+
+                showMessage(errorMessage, 'error');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Publish Novel';
+            }
+        }
+
+
+        // --- Helper Functions (showMessage, setView, init on Load) ---
+
+        function showMessage(message, type = 'info') {
+            const messageBox = document.getElementById('message-box');
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'bg-yellow-100', 'text-green-800', 'text-red-800', 'text-yellow-800');
+            
+            // Reapply base classes to handle dark mode styling
+            messageBox.className = 'p-3 mb-4 rounded-lg text-sm font-medium max-w-xl mx-auto';
+
+            if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-800', 'dark:bg-green-900/50', 'dark:text-green-300');
+            } else if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-800', 'dark:bg-red-900/50', 'dark:text-red-300');
+            } else {
+                 messageBox.classList.add('bg-yellow-100', 'text-yellow-800', 'dark:bg-yellow-900/50', 'dark:text-yellow-300');
+            }
+            
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 5000);
+        }
+
+        window.setView = (viewName) => {
+            const listView = document.getElementById('novel-list-view');
+            const publishView = document.getElementById('publish-novel-view');
+            const navList = document.getElementById('nav-list');
+            const navPublish = document.getElementById('nav-publish');
+
+            if (!listView || !publishView || !navList || !navPublish) {
+                console.error("Critical: Navigation elements missing from DOM.");
+                return;
+            }
+            
+            // Ensure both views are hidden before showing the target one
+            listView.classList.add('hidden');
+            publishView.classList.add('hidden');
+
+            const activeClasses = ['text-accent', 'border-accent'];
+            const inactiveClasses = ['text-slate-400', 'border-transparent', 'hover:text-accent'];
+
+            // Reset navigation styles
+            navList.classList.remove(...activeClasses, ...inactiveClasses);
+            navPublish.classList.remove(...activeClasses, ...inactiveClasses);
+
+            if (viewName === 'list') {
+                listView.classList.remove('hidden');
+                navList.classList.add(...activeClasses);
+                navPublish.classList.add('border-transparent', 'text-slate-400', 'hover:text-accent');
+            } else if (viewName === 'publish') {
+                publishView.classList.remove('hidden');
+                navPublish.classList.add(...activeClasses);
+                navList.classList.add('border-transparent', 'text-slate-400', 'hover:text-accent');
+            }
+        };
+
+        window.openNovelModal = (novel) => {
+            currentNovelContent = novel.content;
+            document.getElementById('modal-novel-title').textContent = novel.title;
+            document.getElementById('modal-novel-author').textContent = `By: ${novel.author}`;
+            document.getElementById('novel-display-content').textContent = novel.content;
+            
+            // Reset ALL speech/audio states
+            stopSpeech(); // Browser TTS
+            stopGeminiSpeech(); // Gemini TTS
+            
+            document.getElementById('tts-play-button').textContent = 'Play Audio';
+            document.getElementById('gemini-tts-play-button').textContent = 'Play Premium Audio ✨';
+            document.getElementById('gemini-tts-play-button').classList.remove('bg-red-600', 'hover:bg-red-700');
+            document.getElementById('gemini-tts-play-button').classList.add('bg-purple-600', 'hover:bg-purple-700');
+
+            // Reset summary output
+            document.getElementById('novel-summary-output').innerHTML = '<p class="text-slate-400 text-sm">Click the button below to generate a summary.</p>';
+            document.getElementById('summary-button').disabled = false;
+            document.getElementById('summary-button').textContent = 'Summarize Chapter ✨';
+
+
+            populateVoices(); // Browser voices
+            populateGeminiVoices(); // Gemini voices
+
+            document.getElementById('novel-reader-modal').classList.remove('hidden');
+        };
+
+        window.onload = () => {
+            applySavedTheme();
+            initFirebase();
+            document.getElementById('publish-form').addEventListener('submit', addNovel);
+            document.getElementById('nav-list').addEventListener('click', () => setView('list'));
+            document.getElementById('nav-publish').addEventListener('click', () => setView('publish'));
+            
+            populateVoices();
+            populateGeminiVoices();
+            
+            // Set default view—it is already visually correct in HTML, 
+            // but calling this ensures the publish view is hidden and styling is locked in.
+            setView('list'); 
+        };
+    </script>
+    
+    <!-- Google Translate Script (The FREE solution for translation) -->
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'en',
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+                autoDisplay: false
+            }, 'google_translate_element');
+        }
+    </script>
+    <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+    
+    <!-- Main Application Layout -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Header & Tabs -->
+        <header class="mb-8">
+            <div class="flex justify-between items-start mb-4 flex-col sm:flex-row">
+                <h1 class="text-4xl font-extrabold text-text-dark dark:text-text-light mb-4 sm:mb-0">DelightNovel</h1>
+                
+                <!-- Controls and Translate Widget -->
+                <div class="flex items-center space-x-4">
+                    <!-- Dark Mode Toggle -->
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-text-dark dark:text-slate-400">Light</span>
+                        <label for="mode-toggle" class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="mode-toggle" onchange="toggleDarkMode()" class="sr-only peer" checked>
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-accent"></div>
+                        </label>
+                        <span class="text-xs text-text-dark dark:text-slate-400">Dark</span>
+                    </div>
+                    <!-- Google Translate Widget Placeholder -->
+                    <div id="google_translate_element" class="text-sm"></div>
+                </div>
+            </div>
+            
+            <div class="border-b border-gray-200 dark:border-slate-700">
+                <nav class="flex space-x-8">
+                    <!-- Nav List is now styled as ACTIVE by default -->
+                    <button id="nav-list" class="pb-3 border-b-2 border-accent text-accent font-medium transition duration-150">
+                        View All Novels
+                    </button>
+                    <button id="nav-publish" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-accent font-medium transition duration-150">
+                        Publish A Novel
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Message Box for Feedback -->
+        <div id="message-box" class="hidden"></div>
+
+        <!-- 1. Novel List View (No longer hidden, it's the default view) -->
+        <div id="novel-list-view">
+            <h2 id="novel-list-header" class="text-3xl font-bold text-text-dark dark:text-text-light mb-6">Latest Works</h2>
+            <div id="novel-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="col-span-full text-center py-10 text-slate-500">Loading novels...</div>
+            </div>
+        </div>
+
+        <!-- 2. Publish Novel View (Form) -->
+        <div id="publish-novel-view" class="hidden max-w-2xl mx-auto bg-secondary-dark p-8 rounded-xl shadow-2xl border border-slate-700">
+            <h2 class="text-3xl font-bold text-accent mb-6 text-center">Submit Your Webnovel Translation</h2>
+            <p class="text-slate-400 text-center mb-8">Share your translated works with the community.</p>
+
+            <form id="publish-form" class="space-y-6">
+                <!-- Cover Image Upload -->
+                <label for="novelCover" class="block text-sm font-medium text-slate-300 mb-1">Cover Image (Small file size recommended)</label>
+                <input type="file" id="novelCover" name="novelCover" accept="image/*" class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-accent hover:file:bg-indigo-100">
+
+                <!-- Title, Author, Genre -->
+                <input type="text" id="novelTitle" name="novelTitle" placeholder="Novel Title" required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <input type="text" id="novelAuthor" name="novelAuthor" placeholder="Translator / Author Name" required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
+                    <select id="novelGenre" name="novelGenre" required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
+                        <option value="" class="bg-secondary-dark">Select Genre</option>
+                        <option value="Fantasy" class="bg-secondary-dark">Fantasy</option>
+                        <option value="Sci-Fi" class="bg-secondary-dark">Sci-Fi</option>
+                        <option value="Wuxia/Xianxia" class="bg-secondary-dark">Wuxia/Xianxia</option>
+                        <option value="Romance" class="bg-secondary-dark">Romance</option>
+                        <option value="System" class="bg-secondary-dark">System</option>
+                        <option value="Mystery" class="bg-secondary-dark">Mystery</option>
+                        <option value="Other" class="bg-secondary-dark">Other</option>
+                    </select>
+                </div>
+                
+                <!-- Content -->
+                <textarea id="novelContent" name="novelContent" rows="10" placeholder="Paste the translated content here..." required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150"></textarea>
+                
+                <!-- Privacy and Scheduling -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
+                    <!-- Schedule Date -->
+                    <div>
+                        <label for="novelScheduleDate" class="block text-sm font-medium text-slate-300 mb-1">Schedule Publication Date (Optional)</label>
+                        <input type="datetime-local" id="novelScheduleDate" name="novelScheduleDate" class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
+                    </div>
+                    <!-- Private Toggle -->
+                    <div class="flex items-center justify-start sm:justify-end mt-6 sm:mt-0">
+                        <label for="novelPrivate" class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" id="novelPrivate" name="novelPrivate" class="sr-only peer">
+                            <div class="relative w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-red-500"></div>
+                            <span class="text-sm font-medium text-slate-300">Save as Private Draft</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <button type="submit" class="w-full bg-accent text-white font-semibold py-3 rounded-lg shadow-lg hover:bg-indigo-700 transition duration-300 transform hover:scale-[1.01]">
+                    Publish Novel
+                </button>
+            </form>
+        </div>
+
+    </div>
+
+    <!-- Novel Reader Modal -->
+    <div id="novel-reader-modal" class="fixed inset-0 z-50 bg-gray-900 bg-opacity-80 hidden overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen pt-12 pb-20">
+            <div class="bg-secondary-dark rounded-xl shadow-3xl w-full max-w-4xl mx-4 p-8 transform transition-all">
+                
+                <!-- Modal Header -->
+                <div class="flex justify-between items-start border-b border-slate-700 pb-4 mb-4">
+                    <div>
+                        <h2 id="modal-novel-title" class="text-3xl font-bold text-text-light"></h2>
+                        <p id="modal-novel-author" class="text-indigo-400 font-medium"></p>
+                    </div>
+                    <button onclick="closeNovelModal()" class="text-slate-500 hover:text-text-light transition">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                
+                <!-- Controls Section -->
+                <div class="grid grid-cols-1 gap-6 border-b border-slate-700 pb-6 mb-6">
+                    
+                    <!-- Translation Information -->
+                    <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
+                        <h3 class="text-xl font-semibold text-text-light mb-2">Translation (100% Free)</h3>
+                        <p class="text-slate-400">To translate the novel, use the **Language Dropdown** at the very top of the screen. It will instantly translate the entire page into your chosen language.</p>
+                    </div>
+
+                    <!-- Gemini Summary Feature -->
+                    <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
+                        <h3 class="text-xl font-semibold text-text-light mb-2">Chapter Summary ✨</h3>
+                        <p class="text-slate-400 text-sm mb-3">Use the Gemini LLM to generate a concise summary of the current novel content.</p>
+                        <div id="novel-summary-output" class="p-3 bg-secondary-dark rounded-lg text-sm text-slate-400 mb-4">
+                            <p class="text-slate-400 text-sm">Click the button below to generate a summary.</p>
+                        </div>
+                        <button id="summary-button" onclick="generateSummary()" class="w-full bg-orange-500 text-white font-semibold py-2 rounded-lg hover:bg-orange-600 transition">
+                            Summarize Chapter ✨
+                        </button>
+                    </div>
+                    
+                    <!-- FREE TTS Control -->
+                    <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
+                        <h3 class="text-lg font-semibold text-text-light mb-3">Browser TTS (Free)</h3>
+                        <p class="text-slate-400 text-sm mb-3">Uses your browser's native voices, which may vary in quality and accent based on your device.</p>
+                        <div class="space-y-3">
+                            <!-- Voice Selector -->
+                            <select id="tts-voice-select" class="w-full px-3 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light">
+                                <!-- Options populated by JS -->
+                            </select>
+                            
+                            <!-- Speed Control (Reused for both TTS services) -->
+                            <div class="flex items-center space-x-3">
+                                <label for="tts-speed-slider" class="text-sm text-slate-400">Speed:</label>
+                                <input type="range" id="tts-speed-slider" min="0.5" max="3.0" step="0.1" value="1.0" 
+                                       oninput="updateSpeedLabel(this.value)" class="flex-grow h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer">
+                                <span id="tts-speed-label" class="text-sm font-semibold text-indigo-400 w-10">1.0x</span>
+                            </div>
+                            
+                            <!-- Play Button -->
+                            <button id="tts-play-button" onclick="toggleAudioPlayback(this)" class="w-full bg-green-600 text-white font-semibold py-2 rounded-lg hover:bg-green-700 transition">
+                                Play Audio
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Gemini Pro TTS (Premium Voice) -->
+                    <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
+                        <h3 class="text-lg font-semibold text-text-light mb-3">Gemini Pro TTS (Premium Voice) ✨</h3>
+                        <p class="text-slate-400 text-sm mb-3">Powered by Gemini for high-quality, professional voice playback. Note: Audio volume controlled by device/browser.</p>
+                        <div class="space-y-3">
+                            <!-- Voice Selector -->
+                            <select id="gemini-tts-voice-select" class="w-full px-3 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light">
+                                <!-- Options populated by JS -->
+                            </select>
+                            
+                            <!-- Play Button -->
+                            <button id="gemini-tts-play-button" onclick="toggleGeminiAudioPlayback(this)" class="w-full bg-purple-600 text-white font-semibold py-2 rounded-lg hover:bg-purple-700 transition">
+                                Play Premium Audio ✨
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Content Display -->
+                <div>
+                    <h3 id="translated-text-label" class="text-xl font-semibold text-text-light mb-4 border-b border-slate-700 pb-2">Novel Content (Use dropdown above to translate)</h3>
+                    <div id="novel-display-content" class="h-96 overflow-y-auto p-4 border border-slate-700 rounded-lg bg-primary-dark novel-content-text text-slate-200">
+                        <!-- Novel content goes here -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</body>
+</html>
