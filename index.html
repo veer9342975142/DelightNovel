@@ -80,12 +80,16 @@
 
     <main class="max-w-6xl mx-auto">
         
-        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
-            <h2 id="novel-list-title" class="text-2xl font-semibold text-text-light"></h2>
+        <div class="flex flex-col md:flex-row md:justify-between items-center mb-6 space-y-4 md:space-y-0">
+            <h2 id="novel-list-title" class="text-2xl font-semibold text-text-light w-full md:w-auto text-center md:text-left"></h2>
             
-            <div class="flex space-x-3 w-full sm:w-auto">
+            <div class="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full md:w-auto">
+                <input type="text" id="novel-search-input" oninput="filterAndRenderNovels(this.value)"
+                    placeholder="Search titles, authors, or tags..."
+                    class="w-full sm:w-64 px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
+                    
                 <button onclick="document.getElementById('add-novel-modal').classList.remove('hidden')"
-                    class="flex-grow sm:flex-grow-0 bg-accent text-white font-bold py-2 px-6 rounded-lg shadow-md hover:bg-indigo-600 transition duration-200">
+                    class="w-full sm:w-auto bg-accent text-white font-bold py-2 px-6 rounded-lg shadow-md hover:bg-indigo-600 transition duration-200">
                     + Publish New Novel
                 </button>
             </div>
@@ -279,7 +283,6 @@
 
     <script>
         // --- Globals ---
-        // The user ID is now just a unique identifier for the browser's local storage data
         let currentUserId = 'user-' + (localStorage.getItem('userId') || crypto.randomUUID()); 
         let currentNovels = [];
         let activeNovel = null; // Stores the currently viewed novel object
@@ -345,7 +348,41 @@
          */
         function loadAndRenderNovels() {
             currentNovels = loadNovelsFromStorage();
-            renderNovels(currentNovels);
+            // Render the full list and clear the search bar if it had content
+            document.getElementById('novel-search-input').value = "";
+            renderNovels(currentNovels, false);
+        }
+        
+        // --- Novel Search Function ---
+
+        /**
+         * Filters the novels based on a search query and renders the results.
+         * @param {string} query - The search string from the input.
+         */
+        function filterAndRenderNovels(query) {
+            const normalizedQuery = query.toLowerCase().trim();
+
+            if (normalizedQuery === "") {
+                // If the query is empty, show all novels
+                renderNovels(currentNovels, false); 
+                return;
+            }
+
+            // Filter the novels
+            const filteredNovels = currentNovels.filter(novel => {
+                // Fields to search: title, author, and tags
+                const searchFields = [
+                    novel.title.toLowerCase(),
+                    novel.author.toLowerCase(),
+                    Array.isArray(novel.tags) ? novel.tags.join(' ').toLowerCase() : ''
+                ];
+
+                // Check if the query is included in any of the search fields
+                return searchFields.some(field => field.includes(normalizedQuery));
+            });
+
+            // Render the filtered list and tell renderNovels that this is a search result
+            renderNovels(filteredNovels, true);
         }
 
         // --- UI Rendering Functions ---
@@ -353,20 +390,33 @@
         /**
          * Renders the novel cards based on the fetched data.
          * @param {Array} novels - The list of novels to display.
+         * @param {boolean} isFiltered - True if the list is a result of a search filter.
          */
-        function renderNovels(novels) {
+        function renderNovels(novels, isFiltered = false) {
             const container = document.getElementById('novel-list-container');
             container.innerHTML = ''; // Clear existing content
 
             if (novels.length === 0) {
+                const message = isFiltered 
+                    ? `No webnovels found matching your search term.` 
+                    : `No novels published yet.`;
+                const subtitle = isFiltered 
+                    ? `Try a different keyword or clear the search to see all novels.`
+                    : `Click '+ Publish New Novel' to create your first webnovel!`;
+                
+                // Set to span all columns for the center message
+                container.className = 'grid grid-cols-1';
                 container.innerHTML = `
-                    <div class="lg:col-span-3 text-center p-10 bg-secondary-dark rounded-xl border border-slate-700">
-                        <p class="text-xl text-slate-400">No novels published yet.</p>
-                        <p class="text-sm text-slate-500 mt-2">Click '+ Publish New Novel' to create your first webnovel!</p>
+                    <div class="text-center p-10 bg-secondary-dark rounded-xl border border-slate-700 max-w-2xl mx-auto w-full mt-6">
+                        <p class="text-xl text-slate-400">${message}</p>
+                        <p class="text-sm text-slate-500 mt-2">${subtitle}</p>
                     </div>
                 `;
                 return;
             }
+
+            // Reset grid layout for novels
+            container.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
 
             novels.forEach(novel => {
                 // Ensure tags is a safe array
@@ -460,7 +510,7 @@
             // Close modal and refresh UI
             document.getElementById('add-novel-modal').classList.add('hidden');
             document.getElementById('add-novel-form').reset();
-            loadAndRenderNovels();
+            loadAndRenderNovels(); // Load and render the full list (clears search)
             showMessageBox("Success!", "Your novel has been published successfully.", false);
         }
 
@@ -548,7 +598,7 @@
 
                 // Close modal and refresh UI
                 document.getElementById('edit-novel-modal').classList.add('hidden');
-                loadAndRenderNovels();
+                loadAndRenderNovels(); // Load and render the full list (clears search)
                 showMessageBox("Success!", "Your novel has been updated successfully.", false);
             } else {
                  showMessageBox("Error", "Novel ID not found for update.", false);
@@ -575,7 +625,7 @@
                 if (index > -1) {
                     currentNovels.splice(index, 1);
                     saveNovelsToStorage(currentNovels);
-                    loadAndRenderNovels();
+                    loadAndRenderNovels(); // Load and render the full list (clears search)
                     
                     // Close view modal if the deleted novel was being viewed
                     if (activeNovel && activeNovel.id === idToDelete) {
