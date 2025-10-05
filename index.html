@@ -276,8 +276,8 @@
 
             // Cover Image logic (uses Base64 data stored in Firestore)
             const coverImage = novel.coverImage ? 
-                `<img src="${novel.coverImage}" alt="Novel Cover" class="w-full h-40 object-cover rounded-t-xl shadow-md">` : 
-                `<div class="w-full h-40 bg-indigo-900 flex items-center justify-center rounded-t-xl text-lg font-bold text-indigo-300">NO COVER UPLOADED</div>`;
+                `<img src="${novel.coverImage}" alt="Novel Cover for ${novel.title}" class="w-full h-40 object-cover rounded-t-xl shadow-md">` : 
+                `<div class="w-full h-40 bg-indigo-900 flex items-center justify-center rounded-t-xl text-lg font-bold text-indigo-300 p-4 text-center">NO COVER UPLOADED</div>`;
 
             // Card style changes if it's a private/scheduled draft
             const cardClasses = `novel-card p-6 rounded-xl shadow-lg flex flex-col justify-between ${isMyDraft ? 'bg-red-900/50 border-t-4 border-red-400' : 'bg-secondary-dark border-t-4 border-accent'}`;
@@ -321,7 +321,7 @@
             const visibleNovels = novels.filter(novel => {
                 const isPubliclyVisible = novel.private !== true;
                 // Check if novel has no publish date OR the date has passed
-                const isPublishedNow = !novel.publishDate || new Date(novel.publishDate.seconds * 1000) <= now;
+                const isPublishedNow = !novel.publishDate || novel.publishDate.seconds * 1000 <= now.getTime();
 
                 return isPubliclyVisible && isPublishedNow;
             }).sort((a, b) => {
@@ -346,7 +346,7 @@
             // 3. Render private/scheduled novels only to the publisher (Admin View)
             const drafts = novels.filter(novel => 
                 novel.publisherId === userId && 
-                (novel.private === true || (novel.publishDate && new Date(novel.publishDate.seconds * 1000) > now))
+                (novel.private === true || (novel.publishDate && novel.publishDate.seconds * 1000 > now.getTime()))
             );
             
             if (drafts.length > 0) {
@@ -681,6 +681,13 @@
                     resolve(null);
                     return;
                 }
+                // Check for file size limit (e.g., 500KB) to prevent Firestore errors
+                const maxSize = 500 * 1024; // 500 KB
+                if (file.size > maxSize) {
+                    reject(new Error("Cover image is too large. Please select an image under 500KB."));
+                    return;
+                }
+
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result);
                 reader.onerror = error => reject(error);
@@ -750,8 +757,8 @@
             } catch (e) {
                 console.error("Error adding document: ", e);
                 // Check if error might be due to document size limit (1MB) if cover image is large
-                const errorMessage = e.message.includes('Exceeded maximum allowed network request size') ? 
-                    "Error publishing novel: The cover image or content might be too large. Please use a smaller image file." : 
+                const errorMessage = e.message.includes('Exceeded maximum allowed network request size') || e.message.includes('too large') ? 
+                    "Error publishing novel: The cover image or content might be too large. Please use a smaller image file (under 500KB recommended)." : 
                     `Error publishing novel: ${e.message}`;
 
                 showMessage(errorMessage, 'error');
@@ -911,7 +918,7 @@
         </header>
 
         <!-- Message Box for Feedback -->
-        <div id="message-box" class="hidden"></div>
+        <div id="message-box" class="p-3 mb-4 rounded-lg text-sm font-medium max-w-xl mx-auto hidden"></div>
 
         <!-- 1. Novel List View (No longer hidden, it's the default view) -->
         <div id="novel-list-view">
@@ -928,7 +935,7 @@
 
             <form id="publish-form" class="space-y-6">
                 <!-- Cover Image Upload -->
-                <label for="novelCover" class="block text-sm font-medium text-slate-300 mb-1">Cover Image (Small file size recommended)</label>
+                <label for="novelCover" class="block text-sm font-medium text-slate-300 mb-1">Cover Image (Small file size recommended - Max 500KB)</label>
                 <input type="file" id="novelCover" name="novelCover" accept="image/*" class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-accent hover:file:bg-indigo-100">
 
                 <!-- Title, Author, Genre -->
