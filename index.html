@@ -65,6 +65,17 @@
             padding: 0 1px;
             transition: background-color 0.1s;
         }
+        
+        /* Placeholder for cover image if none is provided */
+        .novel-cover-placeholder {
+            background-color: #0f172a; /* Slate-900 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #475569; /* Slate-600 */
+            font-size: 14px;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body class="bg-body-dark text-text-light p-4 md:p-8">
@@ -74,11 +85,11 @@
             DelightNovel <span class="text-accent text-lg font-light">Free Publishing & Reader (Local Storage Only)</span>
         </h1>
         <p class="text-center text-sm text-red-400 mt-2 font-medium">
-            ⚠️ **IMPORTANT:** Novels are saved ONLY in this browser. You cannot edit them on a different computer.
+            ⚠️ **IMPORTANT:** Novels are saved ONLY in this browser. Use your **Secret Edit Key** to edit from other devices.
         </p>
     </header>
 
-    <main class="max-w-6xl mx-auto">
+    <main class="max-w-7xl mx-auto">
         
         <div class="flex flex-col md:flex-row md:justify-between items-center mb-6 space-y-4 md:space-y-0">
             <h2 id="novel-list-title" class="text-2xl font-semibold text-text-light w-full md:w-auto text-center md:text-left"></h2>
@@ -95,7 +106,7 @@
             </div>
         </div>
 
-        <div id="novel-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div id="novel-list-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             </div>
 
         <div id="message-box" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
@@ -127,9 +138,28 @@
                         placeholder="e.g., TheSilentPen">
                 </div>
                 <div class="mb-4">
+                    <label for="novel-cover-image" class="block text-sm font-medium text-text-light mb-1">Cover Image URL (Optional)</label>
+                    <input type="text" id="novel-cover-image" 
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition"
+                        placeholder="Paste a link to your novel's cover image (e.g., from Imgur)">
+                </div>
+                <div class="mb-4">
                     <label for="novel-tags" class="block text-sm font-medium text-text-light mb-1">Tags (e.g., Fantasy, Sci-Fi, Action - comma separated)</label>
                     <input type="text" id="novel-tags" 
                         class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
+                </div>
+                
+                <div class="mb-6 bg-red-900/30 p-3 rounded-lg border border-red-600">
+                    <p class="text-sm font-bold text-red-300 mb-1">⚠️ IMPORTANT SECURITY DISCLAIMER</p>
+                    <p class="text-xs text-red-200">
+                        To prevent malicious editing or deletion, you must create a **unique key of at least 12 characters**, using a mix of letters, numbers, and symbols. This key is the *only* way to edit your novel from any device. **Do not lose it!**
+                    </p>
+                </div>
+                <div class="mb-6">
+                    <label for="novel-edit-key" class="block text-sm font-medium text-text-light mb-1">**Secret Edit Key** (12+ characters recommended)</label>
+                    <input type="password" id="novel-edit-key" required **minlength="12"**
+                        class="w-full px-4 py-2 border border-red-600 rounded-lg bg-secondary-dark text-text-light focus:border-red-400 focus:ring focus:ring-red-400/50 transition"
+                        placeholder="Create a long, safe key (e.g., SafeKey!42Alpha)">
                 </div>
                 <div class="mb-6">
                     <label for="novel-content-textarea" class="block text-sm font-medium text-text-light mb-1">Chapter 1 Content</label>
@@ -160,14 +190,14 @@
                     <p id="view-novel-id" class="text-xs text-slate-500 mt-2"></p>
                 </div>
                 <div class="flex space-x-3">
-                    <button onclick="editNovel(activeNovel.id)" title="Edit Novel"
+                    <button onclick="promptForEditKey(activeNovel.id, 'edit')" title="Edit Novel"
                         class="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition shadow-lg">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M19.045 7.401c.365.365.365.912 0 1.278l-5.6 5.601-2.52 2.52-1.42 1.42-3.841 3.841c-.085.085-.17.17-.282.254-.112.084-.236.148-.36.195-.247.094-.509.141-.771.141-.26 0-.52-.046-.77-.138-.135-.049-.259-.114-.383-.199-.125-.084-.236-.179-.321-.295-.125-.165-.213-.357-.27-.565-.057-.208-.086-.427-.086-.645-.001-.218.028-.437.085-.645.057-.209.145-.401.27-.567.085-.116.196-.211.321-.295.125-.084.25-.15.385-.197.25-.09.51-.138.77-.138.262 0 .524.047.771.141.124.047.248.111.36.195.112.084.22.17.282.254l3.841-3.841 1.42-1.42 2.52-2.52 5.601-5.601c.365-.365.912-.365 1.278 0zm-11.233 13.567-4.11-4.11 7.221-7.222 4.11 4.11z"/>
                         </svg>
                     </button>
 
-                    <button onclick="deleteNovel(activeNovel.id)" title="Delete Novel"
+                    <button onclick="promptForEditKey(activeNovel.id, 'delete')" title="Delete Novel"
                         class="p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition shadow-lg">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M18 6h-2v-1c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v1H6v2h12v-2zM8 7V5h8v2H8zM8 9v10c0 1.103.897 2 2 2h4c1.103 0 2-.897 2-2V9H8z"/>
@@ -246,6 +276,12 @@
                         placeholder="e.g., TheSilentPen">
                 </div>
                 <div class="mb-4">
+                    <label for="edit-novel-cover-image" class="block text-sm font-medium text-text-light mb-1">Cover Image URL (Optional)</label>
+                    <input type="text" id="edit-novel-cover-image" 
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition"
+                        placeholder="Paste a link to your novel's cover image">
+                </div>
+                <div class="mb-4">
                     <label for="edit-novel-tags" class="block text-sm font-medium text-text-light mb-1">Tags (e.g., Fantasy, Sci-Fi, Action - comma separated)</label>
                     <input type="text" id="edit-novel-tags" 
                         class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
@@ -296,14 +332,16 @@
         const LOCAL_STORAGE_KEY = 'delightNovels';
         const VOICE_STORAGE_KEY = 'ttsVoiceName';
         const RATE_STORAGE_KEY = 'ttsRate'; 
+        const DEFAULT_COVER_URL = "https://via.placeholder.com/300x400.png?text=Novel+Cover";
+
 
         /**
          * Initializes the application.
          */
         function initApp() {
-            // Persist the unique user ID (to allow the user to keep editing *on this device*)
+            // Persist the unique user ID (to allow the user to keep tracking their own browser)
             localStorage.setItem('userId', currentUserId.split('-')[1]);
-            console.log("App Initialized. Using local storage for data persistence.");
+            console.log("App Initialized. Using local storage for data persistence. User ID is for browser tracking only, editing is key-based.");
 
             // Set the novel list title and load data
             document.getElementById('novel-list-title').textContent = "My Published Novels (Saved in this Browser)";
@@ -415,36 +453,49 @@
                 return;
             }
 
-            // Reset grid layout for novels
-            container.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
+            // Reset grid layout for novels (4-column grid on large screens)
+            container.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6';
 
             novels.forEach(novel => {
                 // Ensure tags is a safe array
                 const tags = Array.isArray(novel.tags) ? novel.tags : (novel.tags || "").split(',').map(t => t.trim()).filter(t => t);
                 
+                const coverUrl = novel.coverImageUrl && novel.coverImageUrl.trim() ? novel.coverImageUrl.trim() : DEFAULT_COVER_URL;
+                const isPlaceholder = coverUrl === DEFAULT_COVER_URL;
+
                 const card = document.createElement('div');
-                card.className = 'bg-primary-dark p-6 rounded-xl shadow-lg border border-slate-700 hover:border-accent transition duration-200 cursor-pointer flex flex-col justify-between';
+                card.className = 'bg-primary-dark rounded-xl shadow-lg border border-slate-700 hover:border-accent transition duration-200 cursor-pointer flex flex-col overflow-hidden';
                 card.onclick = () => openNovelModal(novel.id);
                 
                 card.innerHTML = `
-                    <div>
-                        <h3 class="text-2xl font-bold text-white mb-2 line-clamp-2">${novel.title}</h3>
-                        <p class="text-sm text-slate-400 mb-4">by <span class="font-semibold text-accent">${novel.author}</span></p>
-                        <div class="flex flex-wrap gap-2 mb-4">
-                            ${tags.map(tag => `<span class="text-xs bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full">${tag}</span>`).join('')}
-                        </div>
+                    <div class="w-full h-64 overflow-hidden ${isPlaceholder ? 'novel-cover-placeholder' : ''}">
+                        ${isPlaceholder 
+                            ? `<span class="p-4 text-center">No Cover Image<br/>(Click to View)</span>` 
+                            : `<img src="${coverUrl}" alt="${novel.title} Cover" class="w-full h-full object-cover">`
+                        }
                     </div>
-                    <div class="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
-                        <p class="text-xs text-slate-500">Published: ${new Date(novel.createdAt).toLocaleDateString()}</p>
-                        <div class="flex space-x-2">
-                            <button onclick="event.stopPropagation(); editNovel('${novel.id}')" 
-                                class="text-blue-400 hover:text-blue-500 transition text-sm font-medium p-1 rounded-md">
-                                Edit
-                            </button>
-                            <button onclick="event.stopPropagation(); deleteNovel('${novel.id}')" 
-                                class="text-red-400 hover:text-red-500 transition text-sm font-medium p-1 rounded-md">
-                                Delete
-                            </button>
+
+                    <div class="p-4 flex flex-col justify-between flex-grow">
+                        <div>
+                            <h3 class="text-xl font-bold text-white mb-1 line-clamp-2">${novel.title}</h3>
+                            <p class="text-sm text-slate-400 mb-3">by <span class="font-semibold text-accent">${novel.author}</span></p>
+                            <div class="flex flex-wrap gap-1 mb-3">
+                                ${tags.slice(0, 3).map(tag => `<span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">${tag}</span>`).join('')}
+                                ${tags.length > 3 ? `<span class="text-xs text-slate-500 px-2 py-0.5">...</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
+                            <p class="text-xs text-slate-500">Published: ${new Date(novel.createdAt).toLocaleDateString()}</p>
+                            <div class="flex space-x-2">
+                                <button onclick="event.stopPropagation(); promptForEditKey('${novel.id}', 'edit')" 
+                                    class="text-blue-400 hover:text-blue-500 transition text-sm font-medium p-1 rounded-md">
+                                    Edit
+                                </button>
+                                <button onclick="event.stopPropagation(); promptForEditKey('${novel.id}', 'delete')" 
+                                    class="text-red-400 hover:text-red-500 transition text-sm font-medium p-1 rounded-md">
+                                    Delete
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -460,8 +511,6 @@
          * @returns {string} HTML string with words wrapped in spans.
          */
         function prepareContentForTtsHighlight(text) {
-            // Use a regex to capture words and keep original whitespace/newlines
-            // The regex splits by any sequence of whitespace, punctuation, or symbols, but keeps the separators
             const parts = text.split(/(\s+|[.,!?;:(){}[\]"'-—\u2013\u2014]|\n)/g).filter(p => p.length > 0);
             
             return parts.map(part => {
@@ -475,6 +524,39 @@
             }).join('');
         }
 
+        // --- Key-Based Authentication Logic ---
+
+        /**
+         * Prompts the user for the secret edit key before performing a protected action.
+         * @param {string} novelId - The ID of the novel.
+         * @param {string} actionType - 'edit' or 'delete'.
+         */
+        function promptForEditKey(novelId, actionType) {
+            const novel = currentNovels.find(n => n.id === novelId);
+            if (!novel) {
+                showMessageBox("Error", "Novel not found.", false);
+                return;
+            }
+
+            // Using standard browser prompt for simplicity and cross-device functionality
+            const keyAttempt = prompt(`Enter the SECRET EDIT KEY for "${novel.title}" to ${actionType}:`);
+
+            if (keyAttempt === null) {
+                // User pressed Cancel
+                return;
+            }
+
+            if (keyAttempt.trim() === novel.editKey) {
+                if (actionType === 'edit') {
+                    editNovel(novelId);
+                } else if (actionType === 'delete') {
+                    deleteNovel(novelId);
+                }
+            } else {
+                showMessageBox("Authentication Failed", "The secret key you entered is incorrect. Access denied.", false);
+            }
+        }
+        
         // --- Event Handlers & Modal Logic ---
 
         /**
@@ -485,11 +567,18 @@
 
             const title = document.getElementById('novel-title').value.trim();
             const author = document.getElementById('novel-author').value.trim();
+            const coverImageUrl = document.getElementById('novel-cover-image').value.trim();
             const tagsInput = document.getElementById('novel-tags').value.trim();
+            const editKey = document.getElementById('novel-edit-key').value.trim(); // NEW
             const content = document.getElementById('novel-content-textarea').value.trim();
 
-            if (!title || !author || !content) {
-                showMessageBox("Validation Error", "Please fill in the title, author, and chapter content.", false);
+            if (!title || !author || !content || !editKey) {
+                showMessageBox("Validation Error", "Please fill in the title, author, key, and chapter content.", false);
+                return;
+            }
+
+            if (editKey.length < 12) {
+                 showMessageBox("Security Warning", "The Secret Edit Key must be at least 12 characters long for your novel's safety.", false);
                 return;
             }
 
@@ -497,10 +586,12 @@
                 id: crypto.randomUUID(),
                 title: title,
                 author: author,
+                coverImageUrl: coverImageUrl, // NEW
+                editKey: editKey, // NEW
                 tags: tagsInput.split(',').map(t => t.trim()).filter(t => t),
                 content: content,
                 createdAt: new Date().toISOString(),
-                userId: currentUserId // This is the browser's unique ID for internal tracking
+                userId: currentUserId // Kept for local tracking but not for auth
             };
             
             // Add to the local array and save
@@ -511,7 +602,7 @@
             document.getElementById('add-novel-modal').classList.add('hidden');
             document.getElementById('add-novel-form').reset();
             loadAndRenderNovels(); // Load and render the full list (clears search)
-            showMessageBox("Success!", "Your novel has been published successfully.", false);
+            showMessageBox("Success!", "Your novel has been published successfully. **REMEMBER YOUR SECRET KEY!**", false);
         }
 
         /**
@@ -539,7 +630,7 @@
         }
 
         /**
-         * Opens the modal to edit a novel.
+         * Opens the modal to edit a novel (after key validation).
          * @param {string} novelId - The ID of the novel to edit.
          */
         function editNovel(novelId) {
@@ -557,6 +648,7 @@
             document.getElementById('edit-novel-id').value = novelToEdit.id;
             document.getElementById('edit-novel-title').value = novelToEdit.title;
             document.getElementById('edit-novel-author').value = novelToEdit.author;
+            document.getElementById('edit-novel-cover-image').value = novelToEdit.coverImageUrl || ''; // NEW
             document.getElementById('edit-novel-tags').value = Array.isArray(novelToEdit.tags) ? novelToEdit.tags.join(', ') : novelToEdit.tags || '';
             document.getElementById('edit-novel-content-textarea').value = novelToEdit.content;
             document.getElementById('edit-novel-title-display').textContent = novelToEdit.title;
@@ -573,6 +665,7 @@
             const id = document.getElementById('edit-novel-id').value;
             const title = document.getElementById('edit-novel-title').value.trim();
             const author = document.getElementById('edit-novel-author').value.trim();
+            const coverImageUrl = document.getElementById('edit-novel-cover-image').value.trim(); // NEW
             const tagsInput = document.getElementById('edit-novel-tags').value.trim();
             const content = document.getElementById('edit-novel-content-textarea').value.trim();
 
@@ -589,6 +682,7 @@
                     ...currentNovels[index],
                     title: title,
                     author: author,
+                    coverImageUrl: coverImageUrl, // UPDATED
                     tags: tagsInput.split(',').map(t => t.trim()).filter(t => t),
                     content: content,
                     updatedAt: new Date().toISOString()
@@ -607,7 +701,7 @@
 
 
         /**
-         * Deletes the currently active novel after confirmation.
+         * Prepares for deletion (after key validation).
          * @param {string} novelId - The ID of the novel to delete.
          */
         function deleteNovel(novelId) {
