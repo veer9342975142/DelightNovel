@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DelightNovel - Free Multilingual Webnovel Reader & Publisher</title>
-    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Tailwind Configuration for Dark Mode
@@ -13,8 +12,10 @@
             theme: {
                 extend: {
                     colors: {
-                        'primary-dark': '#1e293b',   // Slate-800
-                        'secondary-dark': '#334155', // Slate-700
+                        // UPDATED: Primary dark background is now pitch black
+                        'primary-dark': '#000000',   // Pitch Black
+                        // UPDATED: Secondary dark for cards/containers is very dark gray
+                        'secondary-dark': '#111111', // Very Dark Gray
                         'text-light': '#f8fafc',     // Slate-50
                         'text-dark': '#0f172a',      // Slate-900
                         'accent': '#6366f1',         // Indigo-500
@@ -44,14 +45,14 @@
             line-height: 1.7;
             white-space: pre-wrap; /* Preserves formatting including newlines */
         }
-        /* Custom styles for dark/light mode consistency */
-        .dark .bg-white { background-color: #334155; }
+        /* Custom styles for dark/light mode consistency - UPDATED for black background */
+        .dark .bg-white { background-color: #111111; }
         .dark .text-gray-800 { color: #f8fafc; }
         .dark .text-gray-700 { color: #cbd5e1; }
         .dark .text-gray-600 { color: #94a3b8; }
         .dark .border-gray-200 { border-color: #475569; }
         .dark .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -2px rgba(0,0,0,0.2); }
-        .dark .bg-gray-50 { background-color: #1e293b; }
+        .dark .bg-gray-50 { background-color: #000000; }
 
         /* Google Translate Widget Styling Fixes */
         #google_translate_element {
@@ -77,7 +78,6 @@
 </head>
 <body class="min-h-screen bg-text-light dark:bg-primary-dark text-text-dark dark:text-text-light">
 
-    <!-- Firebase Imports and Setup -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -99,25 +99,12 @@
         const speechSynthesizer = window.speechSynthesis; // Global browser speech object
         let currentUtterance = null; // To hold the current browser speech instance
 
-        // Gemini API configuration
+        // Gemini API configuration - Kept for Summary Feature
         const apiKey = ""; 
-
-        // Gemini Voices for Advanced TTS
-        const geminiVoices = [
-            { name: "Kore (Firm)", voice: "Kore" },
-            { name: "Puck (Upbeat)", voice: "Puck" },
-            { name: "Zephyr (Bright)", voice: "Zephyr" },
-            { name: "Charon (Informative)", voice: "Charon" },
-            { name: "Fenrir (Excitable)", voice: "Fenrir" },
-            { name: "Leda (Youthful)", voice: "Leda" },
-        ];
-
-        let currentGeminiAudioSource = null;
-        let audioContext = null;
 
         // --- Utility Functions for Gemini API ---
 
-        // Function with exponential backoff for all Gemini API calls
+        // Function with exponential backoff for all Gemini API calls (Kept for Summary)
         async function retryFetch(url, options, retries = 3) {
             for (let i = 0; i < retries; i++) {
                 try {
@@ -139,61 +126,8 @@
             }
         }
 
-        function base64ToArrayBuffer(base64) {
-            const binaryString = atob(base64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            return bytes.buffer;
-        }
-
-        function pcmToWav(pcmData, sampleRate) {
-            const numChannels = 1;
-            const bitDepth = 16;
-            const bytesPerSample = bitDepth / 8;
-            
-            // Create WAV structure
-            const buffer = new ArrayBuffer(44 + pcmData.length * bytesPerSample);
-            const view = new DataView(buffer);
-            
-            // RIFF identifier
-            view.setUint32(0, 0x52494646, false); // "RIFF"
-            // file length minus 8
-            view.setUint32(4, 36 + pcmData.length * bytesPerSample, true);
-            // "WAVE" format
-            view.setUint32(8, 0x57415645, false); 
-            // "fmt " chunk identifier
-            view.setUint32(12, 0x666d7420, false); 
-            // Format chunk length
-            view.setUint32(16, 16, true);
-            // Sample format (1 for PCM)
-            view.setUint16(20, 1, true);
-            // Number of channels
-            view.setUint16(22, numChannels, true);
-            // Sample rate
-            view.setUint32(24, sampleRate, true);
-            // Byte rate (SampleRate * NumChannels * BitsPerSample/8)
-            view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
-            // Block align (NumChannels * BitsPerSample/8)
-            view.setUint16(32, numChannels * bytesPerSample, true);
-            // Bits per sample
-            view.setUint16(34, bitDepth, true);
-            // "data" chunk identifier
-            view.setUint32(36, 0x64617461, false);
-            // Data chunk length
-            view.setUint32(40, pcmData.length * bytesPerSample, true);
-            
-            // Write PCM data (signed 16-bit little-endian)
-            let offset = 44;
-            for (let i = 0; i < pcmData.length; i++) {
-                view.setInt16(offset, pcmData[i], true);
-                offset += 2;
-            }
-
-            return new Blob([view], { type: 'audio/wav' });
-        }
+        // REMOVED: base64ToArrayBuffer (Gemini TTS utility)
+        // REMOVED: pcmToWav (Gemini TTS utility)
 
         // --- Core Application Functions ---
         
@@ -316,15 +250,8 @@
             const container = document.getElementById('novel-list');
             const header = document.getElementById('novel-list-header');
             
-            // 1. Filter the novels to determine public visibility
-            const now = new Date();
-            const visibleNovels = novels.filter(novel => {
-                const isPubliclyVisible = novel.private !== true;
-                // Check if novel has no publish date OR the date has passed
-                const isPublishedNow = !novel.publishDate || novel.publishDate.seconds * 1000 <= now.getTime();
-
-                return isPubliclyVisible && isPublishedNow;
-            }).sort((a, b) => {
+            // UPDATED: All novels are visible to everyone, no filtering based on private/schedule.
+            const allNovels = novels.sort((a, b) => {
                 // Sort by latest published date first (in memory sorting)
                 const dateA = a.publishedAt ? a.publishedAt.seconds : 0;
                 const dateB = b.publishedAt ? b.publishedAt.seconds : 0;
@@ -333,38 +260,18 @@
 
             container.innerHTML = '';
 
-            // 2. Update the header based on the count
-            if (visibleNovels.length === 0) {
-                header.textContent = '[No new webnovels have been posted. Be the first!]';
+            // Update the header based on the count and render all of them.
+            if (allNovels.length === 0) {
+                header.textContent = '[No webnovels have been posted. Be the first!]';
+                container.innerHTML = '<p class="text-center text-slate-500 col-span-full py-10">No novels have been saved yet. Start publishing!</p>';
             } else {
-                header.textContent = `Latest Works (${visibleNovels.length} posted)`;
-                visibleNovels.forEach(novel => {
+                header.textContent = `All Works (${allNovels.length} posted)`;
+                allNovels.forEach(novel => {
                     container.innerHTML += renderNovelCard(novel);
                 });
             }
 
-            // 3. Render private/scheduled novels only to the publisher (Admin View)
-            const drafts = novels.filter(novel => 
-                novel.publisherId === userId && 
-                (novel.private === true || (novel.publishDate && novel.publishDate.seconds * 1000 > now.getTime()))
-            );
-            
-            if (drafts.length > 0) {
-                let draftHtml = `<h3 class="col-span-full text-xl font-bold text-red-400 mt-8 mb-4">Your Private Drafts / Scheduled Novels (${drafts.length}):</h3>`;
-                drafts.forEach(novel => {
-                    draftHtml += renderNovelCard(novel);
-                });
-                // Prepend or Append drafts based on current state
-                if (visibleNovels.length === 0) {
-                    container.innerHTML = draftHtml + '<p class="text-center text-slate-500 col-span-full py-10">Waiting for the first public novel...</p>';
-                } else {
-                    container.innerHTML += draftHtml;
-                }
-            }
-            
-            if (visibleNovels.length === 0 && drafts.length === 0) {
-                container.innerHTML = '<p class="text-center text-slate-500 col-span-full py-10">No novels have been saved yet. Start publishing!</p>';
-            }
+            // REMOVED: Logic for rendering private/scheduled drafts separately is deleted.
         }
 
         // --- Dark/Light Mode Toggle Logic ---
@@ -399,8 +306,8 @@
         // --- Browser TTS Logic (Free) ---
         
         window.closeNovelModal = () => {
-            stopSpeech(); // Browser TTS
-            stopGeminiSpeech(); // Gemini TTS
+            stopSpeech(); // Browser TTS is the only speech engine now
+            // stopGeminiSpeech(); // Removed
             document.getElementById('novel-reader-modal').classList.add('hidden');
         };
         
@@ -489,137 +396,7 @@
             document.getElementById('tts-speed-label').textContent = `${value}x`;
         };
         
-        // --- Gemini TTS Logic (Advanced) ---
-        function populateGeminiVoices() {
-            const voiceSelect = document.getElementById('gemini-tts-voice-select');
-            voiceSelect.innerHTML = '';
-            geminiVoices.forEach(v => {
-                const option = document.createElement('option');
-                option.value = v.voice;
-                option.textContent = v.name;
-                voiceSelect.appendChild(option);
-            });
-        }
-
-        function stopGeminiSpeech() {
-            if (currentGeminiAudioSource) {
-                currentGeminiAudioSource.pause();
-                currentGeminiAudioSource = null;
-            }
-            // Revoke object URL to free up memory
-            if (window.currentGeminiAudioUrl) {
-                URL.revokeObjectURL(window.currentGeminiAudioUrl);
-                window.currentGeminiAudioUrl = null;
-            }
-        }
-
-        window.toggleGeminiAudioPlayback = async (button) => {
-            // If audio is currently playing, stop it.
-            if (currentGeminiAudioSource && !currentGeminiAudioSource.paused) {
-                stopGeminiSpeech();
-                button.textContent = 'Play Premium Audio ✨';
-                button.classList.remove('bg-red-600', 'hover:bg-red-700');
-                button.classList.add('bg-purple-600', 'hover:bg-purple-700');
-                return;
-            }
-            
-            const contentToSpeak = document.getElementById('novel-display-content').textContent;
-            const selectedVoice = document.getElementById('gemini-tts-voice-select').value;
-            const speed = parseFloat(document.getElementById('tts-speed-slider').value); // Use same speed slider
-
-            if (!contentToSpeak || contentToSpeak.startsWith('Loading')) {
-                showMessage("Please ensure novel content is loaded before playing audio.", 'warning');
-                return;
-            }
-            
-            // Update button state (Starting)
-            button.disabled = true;
-            button.textContent = 'Loading Audio...';
-            button.classList.remove('bg-purple-600', 'hover:bg-purple-700');
-            button.classList.add('bg-gray-500');
-
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
-            
-            // Add speech style/rate hint to the prompt
-            const speechPrompt = `Speak the following text at ${speed}x speed in an engaging and clear tone: ${contentToSpeak}`;
-
-            const payload = {
-                contents: [{ parts: [{ text: speechPrompt }] }],
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: selectedVoice }
-                        }
-                    }
-                },
-                model: "gemini-2.5-flash-preview-tts"
-            };
-
-            try {
-                const response = await retryFetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const result = await response.json();
-                const candidatePart = result?.candidates?.[0]?.content?.parts?.[0];
-                const audioData = candidatePart?.inlineData?.data;
-                const mimeType = candidatePart?.inlineData?.mimeType;
-
-                if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
-                    // Stop any previous audio
-                    stopGeminiSpeech();
-                    
-                    // Extract sample rate from mimeType (e.g., audio/L16;rate=24000)
-                    const rateMatch = mimeType.match(/rate=(\d+)/);
-                    const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000; // Default to 24000
-                    
-                    const pcmDataBuffer = base64ToArrayBuffer(audioData);
-                    const pcm16 = new Int16Array(pcmDataBuffer);
-                    
-                    // Convert PCM to WAV Blob
-                    const wavBlob = pcmToWav(pcm16, sampleRate);
-                    const audioUrl = URL.createObjectURL(wavBlob);
-                    window.currentGeminiAudioUrl = audioUrl; // Store to revoke later
-                    
-                    // Play the audio
-                    const audio = new Audio(audioUrl);
-                    audio.play().catch(e => console.error("Audio playback error:", e));
-
-                    // Set state to track playback
-                    currentGeminiAudioSource = audio;
-
-                    audio.onended = () => {
-                        currentGeminiAudioSource = null;
-                        button.textContent = 'Play Premium Audio ✨';
-                        button.classList.remove('bg-red-600', 'hover:bg-red-700');
-                        button.classList.add('bg-purple-600', 'hover:bg-purple-700');
-                    };
-                    
-                    // Update button state (Playing)
-                    button.textContent = 'Stop Premium Playback';
-                    button.classList.remove('bg-gray-500');
-                    button.classList.add('bg-red-600', 'hover:bg-red-700');
-
-                } else {
-                    showMessage("Failed to generate premium audio. Response format error.", 'error');
-                    console.error("Gemini TTS response error:", result);
-                }
-
-            } catch (error) {
-                showMessage(`Error generating premium audio: ${error.message}`, 'error');
-                console.error("Error during Gemini TTS generation:", error);
-            } finally {
-                button.disabled = false;
-                if (!currentGeminiAudioSource || currentGeminiAudioSource.paused) { // Only reset text if not successfully started playback
-                     button.textContent = 'Play Premium Audio ✨';
-                     button.classList.remove('bg-gray-500');
-                     button.classList.add('bg-purple-600', 'hover:bg-purple-700');
-                }
-            }
-        };
+        // REMOVED: All Gemini TTS Logic (populateGeminiVoices, stopGeminiSpeech, toggleGeminiAudioPlayback)
 
         // --- LLM (Summary) Logic ---
 
@@ -832,13 +609,11 @@
             document.getElementById('novel-display-content').textContent = novel.content;
             
             // Reset ALL speech/audio states
-            stopSpeech(); // Browser TTS
-            stopGeminiSpeech(); // Gemini TTS
+            stopSpeech(); // Browser TTS is the only speech engine now
+            // stopGeminiSpeech(); // Removed
             
             document.getElementById('tts-play-button').textContent = 'Play Audio';
-            document.getElementById('gemini-tts-play-button').textContent = 'Play Premium Audio ✨';
-            document.getElementById('gemini-tts-play-button').classList.remove('bg-red-600', 'hover:bg-red-700');
-            document.getElementById('gemini-tts-play-button').classList.add('bg-purple-600', 'hover:bg-purple-700');
+            // Removed Gemini TTS button resets
 
             // Reset summary output
             document.getElementById('novel-summary-output').innerHTML = '<p class="text-slate-400 text-sm">Click the button below to generate a summary.</p>';
@@ -847,7 +622,7 @@
 
 
             populateVoices(); // Browser voices
-            populateGeminiVoices(); // Gemini voices
+            // populateGeminiVoices(); // Removed
 
             document.getElementById('novel-reader-modal').classList.remove('hidden');
         };
@@ -860,15 +635,13 @@
             document.getElementById('nav-publish').addEventListener('click', () => setView('publish'));
             
             populateVoices();
-            populateGeminiVoices();
+            // populateGeminiVoices(); // Removed
             
-            // Set default view—it is already visually correct in HTML, 
-            // but calling this ensures the publish view is hidden and styling is locked in.
+            // Set default view to list, as requested.
             setView('list'); 
         };
     </script>
     
-    <!-- Google Translate Script (The FREE solution for translation) -->
     <script type="text/javascript">
         function googleTranslateElementInit() {
             new google.translate.TranslateElement({
@@ -880,17 +653,13 @@
     </script>
     <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
     
-    <!-- Main Application Layout -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        <!-- Header & Tabs -->
         <header class="mb-8">
             <div class="flex justify-between items-start mb-4 flex-col sm:flex-row">
                 <h1 class="text-4xl font-extrabold text-text-dark dark:text-text-light mb-4 sm:mb-0">DelightNovel</h1>
                 
-                <!-- Controls and Translate Widget -->
                 <div class="flex items-center space-x-4">
-                    <!-- Dark Mode Toggle -->
                     <div class="flex items-center space-x-2">
                         <span class="text-xs text-text-dark dark:text-slate-400">Light</span>
                         <label for="mode-toggle" class="relative inline-flex items-center cursor-pointer">
@@ -899,14 +668,12 @@
                         </label>
                         <span class="text-xs text-text-dark dark:text-slate-400">Dark</span>
                     </div>
-                    <!-- Google Translate Widget Placeholder -->
                     <div id="google_translate_element" class="text-sm"></div>
                 </div>
             </div>
             
             <div class="border-b border-gray-200 dark:border-slate-700">
                 <nav class="flex space-x-8">
-                    <!-- Nav List is now styled as ACTIVE by default -->
                     <button id="nav-list" class="pb-3 border-b-2 border-accent text-accent font-medium transition duration-150">
                         View All Novels
                     </button>
@@ -917,10 +684,8 @@
             </div>
         </header>
 
-        <!-- Message Box for Feedback -->
         <div id="message-box" class="p-3 mb-4 rounded-lg text-sm font-medium max-w-xl mx-auto hidden"></div>
 
-        <!-- 1. Novel List View (No longer hidden, it's the default view) -->
         <div id="novel-list-view">
             <h2 id="novel-list-header" class="text-3xl font-bold text-text-dark dark:text-text-light mb-6">Latest Works</h2>
             <div id="novel-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -928,17 +693,14 @@
             </div>
         </div>
 
-        <!-- 2. Publish Novel View (Form) -->
         <div id="publish-novel-view" class="hidden max-w-2xl mx-auto bg-secondary-dark p-8 rounded-xl shadow-2xl border border-slate-700">
             <h2 class="text-3xl font-bold text-accent mb-6 text-center">Submit Your Webnovel Translation</h2>
             <p class="text-slate-400 text-center mb-8">Share your translated works with the community.</p>
 
             <form id="publish-form" class="space-y-6">
-                <!-- Cover Image Upload -->
                 <label for="novelCover" class="block text-sm font-medium text-slate-300 mb-1">Cover Image (Small file size recommended - Max 500KB)</label>
                 <input type="file" id="novelCover" name="novelCover" accept="image/*" class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-accent hover:file:bg-indigo-100">
 
-                <!-- Title, Author, Genre -->
                 <input type="text" id="novelTitle" name="novelTitle" placeholder="Novel Title" required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <input type="text" id="novelAuthor" name="novelAuthor" placeholder="Translator / Author Name" required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
@@ -954,17 +716,13 @@
                     </select>
                 </div>
                 
-                <!-- Content -->
                 <textarea id="novelContent" name="novelContent" rows="10" placeholder="Paste the translated content here..." required class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150"></textarea>
                 
-                <!-- Privacy and Scheduling -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
-                    <!-- Schedule Date -->
                     <div>
                         <label for="novelScheduleDate" class="block text-sm font-medium text-slate-300 mb-1">Schedule Publication Date (Optional)</label>
                         <input type="datetime-local" id="novelScheduleDate" name="novelScheduleDate" class="w-full px-4 py-3 border border-slate-600 rounded-lg bg-primary-dark text-text-light focus:ring-accent focus:border-accent transition duration-150">
                     </div>
-                    <!-- Private Toggle -->
                     <div class="flex items-center justify-start sm:justify-end mt-6 sm:mt-0">
                         <label for="novelPrivate" class="flex items-center space-x-3 cursor-pointer">
                             <input type="checkbox" id="novelPrivate" name="novelPrivate" class="sr-only peer">
@@ -982,12 +740,10 @@
 
     </div>
 
-    <!-- Novel Reader Modal -->
     <div id="novel-reader-modal" class="fixed inset-0 z-50 bg-gray-900 bg-opacity-80 hidden overflow-y-auto">
         <div class="flex items-start justify-center min-h-screen pt-12 pb-20">
             <div class="bg-secondary-dark rounded-xl shadow-3xl w-full max-w-4xl mx-4 p-8 transform transition-all">
                 
-                <!-- Modal Header -->
                 <div class="flex justify-between items-start border-b border-slate-700 pb-4 mb-4">
                     <div>
                         <h2 id="modal-novel-title" class="text-3xl font-bold text-text-light"></h2>
@@ -998,16 +754,13 @@
                     </button>
                 </div>
                 
-                <!-- Controls Section -->
                 <div class="grid grid-cols-1 gap-6 border-b border-slate-700 pb-6 mb-6">
                     
-                    <!-- Translation Information -->
                     <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
                         <h3 class="text-xl font-semibold text-text-light mb-2">Translation (100% Free)</h3>
                         <p class="text-slate-400">To translate the novel, use the **Language Dropdown** at the very top of the screen. It will instantly translate the entire page into your chosen language.</p>
                     </div>
 
-                    <!-- Gemini Summary Feature -->
                     <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
                         <h3 class="text-xl font-semibold text-text-light mb-2">Chapter Summary ✨</h3>
                         <p class="text-slate-400 text-sm mb-3">Use the Gemini LLM to generate a concise summary of the current novel content.</p>
@@ -1019,17 +772,13 @@
                         </button>
                     </div>
                     
-                    <!-- FREE TTS Control -->
                     <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
-                        <h3 class="text-lg font-semibold text-text-light mb-3">Browser TTS (Free)</h3>
-                        <p class="text-slate-400 text-sm mb-3">Uses your browser's native voices, which may vary in quality and accent based on your device.</p>
+                        <h3 class="text-lg font-semibold text-text-light mb-3">Browser TTS (100% Free)</h3>
+                        <p class="text-slate-400 text-sm mb-3">Uses your browser's native voices (Windows Speech Synthesis on PC/similar on mobile), which may vary in quality and accent based on your device.</p>
                         <div class="space-y-3">
-                            <!-- Voice Selector -->
                             <select id="tts-voice-select" class="w-full px-3 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light">
-                                <!-- Options populated by JS -->
-                            </select>
+                                </select>
                             
-                            <!-- Speed Control (Reused for both TTS services) -->
                             <div class="flex items-center space-x-3">
                                 <label for="tts-speed-slider" class="text-sm text-slate-400">Speed:</label>
                                 <input type="range" id="tts-speed-slider" min="0.5" max="3.0" step="0.1" value="1.0" 
@@ -1037,37 +786,18 @@
                                 <span id="tts-speed-label" class="text-sm font-semibold text-indigo-400 w-10">1.0x</span>
                             </div>
                             
-                            <!-- Play Button -->
                             <button id="tts-play-button" onclick="toggleAudioPlayback(this)" class="w-full bg-green-600 text-white font-semibold py-2 rounded-lg hover:bg-green-700 transition">
                                 Play Audio
                             </button>
                         </div>
                     </div>
 
-                    <!-- Gemini Pro TTS (Premium Voice) -->
-                    <div class="bg-primary-dark p-4 rounded-lg shadow-inner border border-slate-700">
-                        <h3 class="text-lg font-semibold text-text-light mb-3">Gemini Pro TTS (Premium Voice) ✨</h3>
-                        <p class="text-slate-400 text-sm mb-3">Powered by Gemini for high-quality, professional voice playback. Note: Audio volume controlled by device/browser.</p>
-                        <div class="space-y-3">
-                            <!-- Voice Selector -->
-                            <select id="gemini-tts-voice-select" class="w-full px-3 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light">
-                                <!-- Options populated by JS -->
-                            </select>
-                            
-                            <!-- Play Button -->
-                            <button id="gemini-tts-play-button" onclick="toggleGeminiAudioPlayback(this)" class="w-full bg-purple-600 text-white font-semibold py-2 rounded-lg hover:bg-purple-700 transition">
-                                Play Premium Audio ✨
-                            </button>
-                        </div>
                     </div>
-                </div>
                 
-                <!-- Content Display -->
                 <div>
                     <h3 id="translated-text-label" class="text-xl font-semibold text-text-light mb-4 border-b border-slate-700 pb-2">Novel Content (Use dropdown above to translate)</h3>
                     <div id="novel-display-content" class="h-96 overflow-y-auto p-4 border border-slate-700 rounded-lg bg-primary-dark novel-content-text text-slate-200">
-                        <!-- Novel content goes here -->
-                    </div>
+                        </div>
                 </div>
 
             </div>
