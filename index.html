@@ -128,8 +128,7 @@
     <div id="add-novel-modal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-40 p-4">
         <div class="bg-primary-dark p-6 md:p-8 rounded-xl w-full max-w-lg shadow-2xl transform transition-all duration-300">
             <h2 class="text-2xl font-bold text-text-light mb-6 border-b border-slate-700 pb-2">Publish New Webnovel</h2>
-            <form id="add-novel-form" onsubmit="handleNovelSubmit(event)">
-                <div class="mb-4">
+            <form id="add-novel-form"> <div class="mb-4">
                     <label for="novel-title" class="block text-sm font-medium text-text-light mb-1">Title</label>
                     <input type="text" id="novel-title" required 
                         class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
@@ -140,11 +139,12 @@
                         class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition"
                         placeholder="e.g., TheSilentPen">
                 </div>
+                
                 <div class="mb-4">
-                    <label for="novel-cover-image" class="block text-sm font-medium text-text-light mb-1">Cover Image URL (Optional)</label>
-                    <input type="text" id="novel-cover-image" 
-                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition"
-                        placeholder="Paste a link to your novel's cover image (e.g., from Imgur)">
+                    <label for="novel-cover-file" class="block text-sm font-medium text-text-light mb-1">Cover Image (Optional - Select File from Device)</label>
+                    <input type="file" id="novel-cover-file" accept="image/*" 
+                        class="w-full text-sm text-slate-400 border border-slate-600 rounded-lg bg-secondary-dark p-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-white hover:file:bg-indigo-600">
+                    <p class="text-xs text-red-400 mt-1">⚠️ Image is converted to text and saved in your browser's local storage. This file will NOT be visible to other users unless a backend server is implemented.</p>
                 </div>
                 <div class="mb-4">
                     <label for="novel-tags" class="block text-sm font-medium text-text-light mb-1">Tags (e.g., Fantasy, Sci-Fi, Action - comma separated)</label>
@@ -174,7 +174,7 @@
                         class="px-6 py-2 border border-slate-600 text-text-light rounded-lg hover:bg-slate-700 transition">
                         Cancel
                     </button>
-                    <button type="submit"
+                    <button type="button" onclick="handleNovelSubmit()"
                         class="px-6 py-2 bg-accent text-white font-semibold rounded-lg hover:bg-indigo-600 transition">
                         Publish Novel
                     </button>
@@ -265,8 +265,7 @@
     <div id="edit-novel-modal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-40 p-4">
         <div class="bg-primary-dark p-6 md:p-8 rounded-xl w-full max-w-lg shadow-2xl transform transition-all duration-300">
             <h2 class="text-2xl font-bold text-text-light mb-6 border-b border-slate-700 pb-2">Edit Webnovel: <span id="edit-novel-title-display"></span></h2>
-            <form id="edit-novel-form" onsubmit="handleNovelEdit(event)">
-                <input type="hidden" id="edit-novel-id">
+            <form id="edit-novel-form"> <input type="hidden" id="edit-novel-id">
                 <div class="mb-4">
                     <label for="edit-novel-title" class="block text-sm font-medium text-text-light mb-1">Title</label>
                     <input type="text" id="edit-novel-title" required 
@@ -278,11 +277,15 @@
                         class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition"
                         placeholder="e.g., TheSilentPen">
                 </div>
+                
                 <div class="mb-4">
-                    <label for="edit-novel-cover-image" class="block text-sm font-medium text-text-light mb-1">Cover Image URL (Optional)</label>
-                    <input type="text" id="edit-novel-cover-image" 
-                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition"
-                        placeholder="Paste a link to your novel's cover image">
+                    <label for="edit-novel-cover-file" class="block text-sm font-medium text-text-light mb-1">Update Cover Image (Select New File)</label>
+                    <div id="edit-novel-cover-preview" class="w-24 h-32 novel-cover-placeholder mb-2 rounded-lg border border-slate-600 overflow-hidden">
+                        <span class="text-xs text-slate-500 p-2 text-center">Current Cover</span>
+                    </div>
+                    <input type="file" id="edit-novel-cover-file" accept="image/*" 
+                        class="w-full text-sm text-slate-400 border border-slate-600 rounded-lg bg-secondary-dark p-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-white hover:file:bg-indigo-600">
+                    <p class="text-xs text-red-400 mt-1">⚠️ Selecting a new file will overwrite the existing cover. It will still only be visible locally.</p>
                 </div>
                 <div class="mb-4">
                     <label for="edit-novel-tags" class="block text-sm font-medium text-text-light mb-1">Tags (e.g., Fantasy, Sci-Fi, Action - comma separated)</label>
@@ -299,7 +302,7 @@
                         class="px-6 py-2 border border-slate-600 text-text-light rounded-lg hover:bg-slate-700 transition">
                         Cancel
                     </button>
-                    <button type="submit"
+                    <button type="button" onclick="handleNovelEdit()"
                         class="px-6 py-2 bg-accent text-white font-semibold rounded-lg hover:bg-indigo-600 transition">
                         Save Changes
                     </button>
@@ -335,7 +338,8 @@
         const LOCAL_STORAGE_KEY = 'delightNovels';
         const VOICE_STORAGE_KEY = 'ttsVoiceName';
         const RATE_STORAGE_KEY = 'ttsRate'; 
-        const DEFAULT_COVER_URL = "https://via.placeholder.com/300x400.png?text=Novel+Cover";
+        // Use a Base64 tiny placeholder to avoid external network requests
+        const DEFAULT_COVER_URL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iNDAwIiB2aWV3Qm94PSIwIDAgMzAwIDQwMCI+CiAgPHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzBmMTcyYSIvPgogIDx0ZXh0IHg9IjE1MCIgeT0iMTgwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiM0NzU1Njk3MCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm92ZWwgQ292ZXI8L3RleHQ+CiAgPHRleHQgeD0iMTUwIiB5PSIyMjAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzQ3NTU2OTcwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4oQ2xpY2sgdG8gVmlldyk8L3RleHQ+Cjwvc3ZnPg==";
 
 
         /**
@@ -463,6 +467,7 @@
                 // Ensure tags is a safe array
                 const tags = Array.isArray(novel.tags) ? novel.tags : (novel.tags || "").split(',').map(t => t.trim()).filter(t => t);
                 
+                // Get the cover URL, which could be Base64
                 const coverUrl = novel.coverImageUrl && novel.coverImageUrl.trim() ? novel.coverImageUrl.trim() : DEFAULT_COVER_URL;
                 const isPlaceholder = coverUrl === DEFAULT_COVER_URL;
 
@@ -528,6 +533,41 @@
             }).join('');
         }
 
+        // --- File Reading Utility ---
+
+        /**
+         * Reads a file input and returns the Base64 data URL.
+         * @param {string} inputId - The ID of the file input element.
+         * @returns {Promise<string|null>} - Base64 data URL or null if no file selected.
+         */
+        function getCoverImageData(inputId) {
+            const fileInput = document.getElementById(inputId);
+            const file = fileInput.files[0];
+
+            return new Promise((resolve, reject) => {
+                if (!file) {
+                    resolve(null);
+                    return;
+                }
+                
+                // Limit to 5MB for local storage safety
+                if (file.size > 5 * 1024 * 1024) { 
+                    reject("File is too large (max 5MB recommended for local storage).");
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    resolve(e.target.result);
+                };
+                reader.onerror = (e) => {
+                    reject("Error reading file: " + e.target.error.name);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+
         // --- Key-Based Authentication Logic ---
 
         /**
@@ -566,23 +606,31 @@
         /**
          * Handles the form submission for publishing a new novel.
          */
-        function handleNovelSubmit(event) {
-            event.preventDefault();
+        async function handleNovelSubmit() {
+            const form = document.getElementById('add-novel-form');
+            // Basic validation check
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
 
             const title = document.getElementById('novel-title').value.trim();
             const author = document.getElementById('novel-author').value.trim();
-            const coverImageUrl = document.getElementById('novel-cover-image').value.trim();
             const tagsInput = document.getElementById('novel-tags').value.trim();
             const editKey = document.getElementById('novel-edit-key').value.trim();
             const content = document.getElementById('novel-content-textarea').value.trim();
 
-            if (!title || !author || !content || !editKey) {
-                showMessageBox("Validation Error", "Please fill in the title, author, key, and chapter content.", false);
+            if (editKey.length < 12) {
+                 showMessageBox("Security Warning", "The Secret Edit Key must be at least 12 characters long for your novel's safety.", false);
                 return;
             }
 
-            if (editKey.length < 12) {
-                 showMessageBox("Security Warning", "The Secret Edit Key must be at least 12 characters long for your novel's safety.", false);
+            let coverImageUrl = null;
+            try {
+                // Get the Base64 image data
+                coverImageUrl = await getCoverImageData('novel-cover-file');
+            } catch (error) {
+                showMessageBox("Image Upload Error", error, false);
                 return;
             }
 
@@ -604,7 +652,7 @@
 
             // Close modal and refresh UI
             document.getElementById('add-novel-modal').classList.add('hidden');
-            document.getElementById('add-novel-form').reset();
+            form.reset();
             loadAndRenderNovels(); 
             showMessageBox("Success!", "Your novel has been published successfully. **REMEMBER YOUR SECRET KEY!**", false);
         }
@@ -652,10 +700,27 @@
             document.getElementById('edit-novel-id').value = novelToEdit.id;
             document.getElementById('edit-novel-title').value = novelToEdit.title;
             document.getElementById('edit-novel-author').value = novelToEdit.author;
-            document.getElementById('edit-novel-cover-image').value = novelToEdit.coverImageUrl || ''; 
             document.getElementById('edit-novel-tags').value = Array.isArray(novelToEdit.tags) ? novelToEdit.tags.join(', ') : novelToEdit.tags || '';
             document.getElementById('edit-novel-content-textarea').value = novelToEdit.content;
             document.getElementById('edit-novel-title-display').textContent = novelToEdit.title;
+            
+            // Update cover preview
+            const previewEl = document.getElementById('edit-novel-cover-preview');
+            previewEl.innerHTML = ''; // Clear existing content
+            previewEl.style.backgroundImage = 'none'; // Clear any background image
+            
+            if (novelToEdit.coverImageUrl) {
+                const img = document.createElement('img');
+                img.src = novelToEdit.coverImageUrl;
+                img.alt = novelToEdit.title + ' Cover';
+                img.className = 'w-full h-full object-cover';
+                previewEl.appendChild(img);
+            } else {
+                 previewEl.innerHTML = '<span class="text-xs text-slate-500 p-2 text-center">No Cover</span>';
+            }
+            
+            // Clear the file input for a new upload
+            document.getElementById('edit-novel-cover-file').value = '';
 
             document.getElementById('edit-novel-modal').classList.remove('hidden');
         }
@@ -663,44 +728,56 @@
         /**
          * Handles the form submission for editing an existing novel.
          */
-        function handleNovelEdit(event) {
-            event.preventDefault();
+        async function handleNovelEdit() {
+            const form = document.getElementById('edit-novel-form');
+            // Basic validation check
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
 
             const id = document.getElementById('edit-novel-id').value;
             const title = document.getElementById('edit-novel-title').value.trim();
             const author = document.getElementById('edit-novel-author').value.trim();
-            const coverImageUrl = document.getElementById('edit-novel-cover-image').value.trim(); 
             const tagsInput = document.getElementById('edit-novel-tags').value.trim();
             const content = document.getElementById('edit-novel-content-textarea').value.trim();
 
-            if (!title || !author || !content) {
-                showMessageBox("Validation Error", "Please fill in the title, author, and chapter content.", false);
+            const index = currentNovels.findIndex(n => n.id === id);
+            if (index === -1) {
+                 showMessageBox("Error", "Novel ID not found for update.", false);
+                 return;
+            }
+
+            let newCoverImageUrl = currentNovels[index].coverImageUrl; // Keep existing image by default
+            
+            try {
+                // Check if a new file was selected
+                const uploadedData = await getCoverImageData('edit-novel-cover-file');
+                if (uploadedData) {
+                    newCoverImageUrl = uploadedData; // Use new image
+                }
+            } catch (error) {
+                showMessageBox("Image Upload Error", error, false);
                 return;
             }
 
-            const index = currentNovels.findIndex(n => n.id === id);
+            // Update the novel object
+            currentNovels[index] = {
+                ...currentNovels[index],
+                title: title,
+                author: author,
+                coverImageUrl: newCoverImageUrl, 
+                tags: tagsInput.split(',').map(t => t.trim()).filter(t => t),
+                content: content,
+                updatedAt: new Date().toISOString()
+            };
 
-            if (index > -1) {
-                // Update the novel object
-                currentNovels[index] = {
-                    ...currentNovels[index],
-                    title: title,
-                    author: author,
-                    coverImageUrl: coverImageUrl, 
-                    tags: tagsInput.split(',').map(t => t.trim()).filter(t => t),
-                    content: content,
-                    updatedAt: new Date().toISOString()
-                };
+            saveNovelsToStorage(currentNovels);
 
-                saveNovelsToStorage(currentNovels);
-
-                // Close modal and refresh UI
-                document.getElementById('edit-novel-modal').classList.add('hidden');
-                loadAndRenderNovels(); 
-                showMessageBox("Success!", "Your novel has been updated successfully.", false);
-            } else {
-                 showMessageBox("Error", "Novel ID not found for update.", false);
-            }
+            // Close modal and refresh UI
+            document.getElementById('edit-novel-modal').classList.add('hidden');
+            loadAndRenderNovels(); 
+            showMessageBox("Success!", "Your novel has been updated successfully.", false);
         }
 
 
