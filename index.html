@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DelightNovel - Free Webnovel Reader & Publisher</title>
-    <!-- Load Tailwind CSS -->
+    <title>DelightNovel - Webnovel Reader & Publisher (Local Only)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Tailwind Configuration for Dark Mode
@@ -20,6 +19,7 @@
                         'text-light': '#f8fafc',     // Slate-50
                         'text-dark': '#0f172a',      // Slate-900
                         'accent': '#6366f1',         // Indigo-500
+                        'highlight-word': '#fcd34d', // Amber-300 for tracing
                     }
                 }
             }
@@ -56,25 +56,34 @@
             white-space: pre-wrap;
             word-wrap: break-word;
         }
+
+        /* Style for the tracing cursor */
+        .highlight-word {
+            background-color: rgba(252, 211, 77, 0.3); /* Semi-transparent highlight */
+            color: #fcd34d;
+            border-radius: 2px;
+            padding: 0 1px;
+            transition: background-color 0.1s;
+        }
     </style>
 </head>
 <body class="bg-body-dark text-text-light p-4 md:p-8">
 
-    <!-- Main Title and Navigation -->
     <header class="mb-8 border-b border-indigo-500/50 pb-4">
         <h1 class="text-4xl font-extrabold text-white text-center">
-            DelightNovel <span class="text-accent text-lg font-light">Free Publishing & Reader</span>
+            DelightNovel <span class="text-accent text-lg font-light">Free Publishing & Reader (Local Storage Only)</span>
         </h1>
+        <p class="text-center text-sm text-red-400 mt-2 font-medium">
+            ⚠️ **IMPORTANT:** Novels are saved ONLY in this browser. You cannot edit them on a different computer.
+        </p>
     </header>
 
     <main class="max-w-6xl mx-auto">
         
-        <!-- Action Bar -->
         <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
             <h2 id="novel-list-title" class="text-2xl font-semibold text-text-light"></h2>
             
             <div class="flex space-x-3 w-full sm:w-auto">
-                <!-- Add New Novel Button -->
                 <button onclick="document.getElementById('add-novel-modal').classList.remove('hidden')"
                     class="flex-grow sm:flex-grow-0 bg-accent text-white font-bold py-2 px-6 rounded-lg shadow-md hover:bg-indigo-600 transition duration-200">
                     + Publish New Novel
@@ -82,12 +91,9 @@
             </div>
         </div>
 
-        <!-- Novel List Container -->
         <div id="novel-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Novel Cards will be inserted here -->
-        </div>
+            </div>
 
-        <!-- Notification/Message Box (for modal-style confirmation/alert) -->
         <div id="message-box" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
             <div class="bg-primary-dark p-6 rounded-xl shadow-2xl max-w-sm w-full border border-accent/50 transform transition-all duration-300 scale-100">
                 <h3 id="message-box-title" class="text-xl font-bold text-accent mb-3"></h3>
@@ -101,7 +107,6 @@
 
     </main>
 
-    <!-- Modal for Adding/Publishing a New Novel -->
     <div id="add-novel-modal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-40 p-4">
         <div class="bg-primary-dark p-6 md:p-8 rounded-xl w-full max-w-lg shadow-2xl transform transition-all duration-300">
             <h2 class="text-2xl font-bold text-text-light mb-6 border-b border-slate-700 pb-2">Publish New Webnovel</h2>
@@ -112,9 +117,10 @@
                         class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
                 </div>
                 <div class="mb-4">
-                    <label for="novel-author" class="block text-sm font-medium text-text-light mb-1">Author Name</label>
+                    <label for="novel-author" class="block text-sm font-medium text-text-light mb-1">Author Name (Your Publisher ID)</label>
                     <input type="text" id="novel-author" required 
-                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition"
+                        placeholder="e.g., TheSilentPen">
                 </div>
                 <div class="mb-4">
                     <label for="novel-tags" class="block text-sm font-medium text-text-light mb-1">Tags (e.g., Fantasy, Sci-Fi, Action - comma separated)</label>
@@ -140,11 +146,9 @@
         </div>
     </div>
 
-    <!-- Modal for Viewing Novel Details and Reading -->
     <div id="view-novel-modal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-40 p-4">
         <div class="bg-primary-dark p-6 md:p-8 rounded-xl w-full max-w-5xl shadow-2xl h-[95vh] flex flex-col">
             
-            <!-- Modal Header -->
             <div class="flex justify-between items-start border-b border-accent/50 pb-4 mb-4">
                 <div>
                     <h2 id="view-novel-title" class="text-3xl font-extrabold text-white"></h2>
@@ -152,13 +156,20 @@
                     <p id="view-novel-id" class="text-xs text-slate-500 mt-2"></p>
                 </div>
                 <div class="flex space-x-3">
-                    <button onclick="deleteNovel()" title="Delete Novel"
+                    <button onclick="editNovel(activeNovel.id)" title="Edit Novel"
+                        class="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.045 7.401c.365.365.365.912 0 1.278l-5.6 5.601-2.52 2.52-1.42 1.42-3.841 3.841c-.085.085-.17.17-.282.254-.112.084-.236.148-.36.195-.247.094-.509.141-.771.141-.26 0-.52-.046-.77-.138-.135-.049-.259-.114-.383-.199-.125-.084-.236-.179-.321-.295-.125-.165-.213-.357-.27-.565-.057-.208-.086-.427-.086-.645-.001-.218.028-.437.085-.645.057-.209.145-.401.27-.567.085-.116.196-.211.321-.295.125-.084.25-.15.385-.197.25-.09.51-.138.77-.138.262 0 .524.047.771.141.124.047.248.111.36.195.112.084.22.17.282.254l3.841-3.841 1.42-1.42 2.52-2.52 5.601-5.601c.365-.365.912-.365 1.278 0zm-11.233 13.567-4.11-4.11 7.221-7.222 4.11 4.11z"/>
+                        </svg>
+                    </button>
+
+                    <button onclick="deleteNovel(activeNovel.id)" title="Delete Novel"
                         class="p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition shadow-lg">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M18 6h-2v-1c0-1.103-.897-2-2-2h-4c-1.103 0-2 .897-2 2v1H6v2h12v-2zM8 7V5h8v2H8zM8 9v10c0 1.103.897 2 2 2h4c1.103 0 2-.897 2-2V9H8z"/>
                         </svg>
                     </button>
-                    <button onclick="document.getElementById('view-novel-modal').classList.add('hidden')"
+                    <button onclick="document.getElementById('view-novel-modal').classList.add('hidden'); stopTtsPlayback();"
                         class="p-2 bg-secondary-dark text-text-light rounded-full hover:bg-slate-600 transition shadow-lg">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
                             <path d="m16.192 6.344-4.192 4.192-4.192-4.192-1.416 1.416 4.192 4.192-4.192 4.192 1.416 1.416 4.192-4.192 4.192 4.192 1.416-1.416-4.192-4.192 4.192-4.192z"/>
@@ -167,34 +178,34 @@
                 </div>
             </div>
 
-            <!-- Reading Panel -->
             <div class="flex-grow overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                <!-- Control Panel (Left/Top) -->
                 <div class="lg:col-span-1 space-y-6">
 
-                    <!-- Translation Section -->
                     <div class="bg-secondary-dark p-4 rounded-xl shadow-inner border border-slate-700">
                         <h3 class="text-xl font-semibold text-text-light mb-3 border-b border-slate-600 pb-2">Multilingual Tools</h3>
                         <p class="text-sm text-slate-400 mb-3">Use the Google Translate widget below to instantly translate the novel content.</p>
                         
-                        <!-- Google Translate Widget Placeholder (Manual implementation is required, but we show the required script) -->
                         <div id="google_translate_element" class="mt-4 p-2 bg-primary-dark rounded-lg border border-slate-600">
-                            <!-- This will be populated by the Google Translate script -->
-                        </div>
+                            </div>
                     </div>
 
-                    <!-- TTS Section (Free, Browser Native) -->
                     <div class="bg-secondary-dark p-4 rounded-xl shadow-inner border border-slate-700">
                         <h3 class="text-xl font-semibold text-text-light mb-3 border-b border-slate-600 pb-2">Text-to-Speech (Free)</h3>
-                        <p class="text-sm text-slate-400 mb-3">Uses your browser's native text-to-speech engine. Audio volume controlled by device/browser.</p>
+                        <p class="text-sm text-slate-400 mb-3">Uses your browser's native text-to-speech engine.</p>
                         <div class="space-y-3">
-                            <!-- Voice Selector -->
                             <select id="tts-voice-select" class="w-full px-3 py-2 border border-slate-600 rounded-lg bg-primary-dark text-text-light">
-                                <!-- Options populated by JS -->
-                            </select>
+                                </select>
+
+                            <div>
+                                <label for="tts-rate-slider" class="block text-sm font-medium text-text-light mb-1 flex justify-between">
+                                    Speech Speed: <span id="tts-rate-value">1.0x</span>
+                                </label>
+                                <input type="range" id="tts-rate-slider" min="0.5" max="2.0" value="1.0" step="0.1" 
+                                    class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer range-lg focus:outline-none focus:ring-2 focus:ring-accent/50 transition" 
+                                    oninput="updateTtsRateValue(this.value)">
+                            </div>
                             
-                            <!-- Play Button -->
                             <button id="tts-play-button" onclick="toggleTtsPlayback(this)" 
                                 class="w-full bg-green-600 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-green-700 transition">
                                 Play Audio 🔊
@@ -204,19 +215,56 @@
 
                 </div>
                 
-                <!-- Content Display (Right/Bottom) -->
                 <div class="lg:col-span-2 flex flex-col">
-                    <h3 id="translated-text-label" class="text-xl font-semibold text-text-light mb-4 border-b border-slate-700 pb-2">Novel Content</h3>
+                    <h3 id="translated-text-label" class="text-xl font-semibold text-text-light mb-4 border-b border-slate-700 pb-2">Novel Content (Word Tracing Active)</h3>
                     <div id="novel-display-content" class="flex-grow overflow-y-auto p-4 border border-slate-700 rounded-lg bg-primary-dark novel-content-text text-slate-200">
-                        <!-- Novel content goes here -->
-                    </div>
+                        </div>
                 </div>
 
             </div>
         </div>
     </div>
     
-    <!-- Google Translate Script (Must be outside type="module" script block) -->
+    <div id="edit-novel-modal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-40 p-4">
+        <div class="bg-primary-dark p-6 md:p-8 rounded-xl w-full max-w-lg shadow-2xl transform transition-all duration-300">
+            <h2 class="text-2xl font-bold text-text-light mb-6 border-b border-slate-700 pb-2">Edit Webnovel: <span id="edit-novel-title-display"></span></h2>
+            <form id="edit-novel-form" onsubmit="handleNovelEdit(event)">
+                <input type="hidden" id="edit-novel-id">
+                <div class="mb-4">
+                    <label for="edit-novel-title" class="block text-sm font-medium text-text-light mb-1">Title</label>
+                    <input type="text" id="edit-novel-title" required 
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
+                </div>
+                <div class="mb-4">
+                    <label for="edit-novel-author" class="block text-sm font-medium text-text-light mb-1">Author Name (Your Publisher ID)</label>
+                    <input type="text" id="edit-novel-author" required 
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition"
+                        placeholder="e.g., TheSilentPen">
+                </div>
+                <div class="mb-4">
+                    <label for="edit-novel-tags" class="block text-sm font-medium text-text-light mb-1">Tags (e.g., Fantasy, Sci-Fi, Action - comma separated)</label>
+                    <input type="text" id="edit-novel-tags" 
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light focus:border-accent focus:ring focus:ring-accent/50 transition">
+                </div>
+                <div class="mb-6">
+                    <label for="edit-novel-content-textarea" class="block text-sm font-medium text-text-light mb-1">Chapter 1 Content</label>
+                    <textarea id="edit-novel-content-textarea" required rows="10" 
+                        class="w-full px-4 py-2 border border-slate-600 rounded-lg bg-secondary-dark text-text-light novel-content-text focus:border-accent focus:ring focus:ring-accent/50 transition resize-y"></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="document.getElementById('edit-novel-modal').classList.add('hidden')"
+                        class="px-6 py-2 border border-slate-600 text-text-light rounded-lg hover:bg-slate-700 transition">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        class="px-6 py-2 bg-accent text-white font-semibold rounded-lg hover:bg-indigo-600 transition">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script type="text/javascript">
         // Function required by Google Translate widget
         function googleTranslateElementInit() {
@@ -229,36 +277,38 @@
     </script>
     <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
-    <!-- Application Logic -->
     <script>
         // --- Globals ---
-        let currentUserId = 'user-' + (localStorage.getItem('userId') || crypto.randomUUID());
+        // The user ID is now just a unique identifier for the browser's local storage data
+        let currentUserId = 'user-' + (localStorage.getItem('userId') || crypto.randomUUID()); 
         let currentNovels = [];
         let activeNovel = null; // Stores the currently viewed novel object
         let speechSynthesisUtterance = null;
         let speechSynth = window.speechSynthesis;
         let pendingAction = null; // For confirmation box
+        let currentRate = 1.0; 
+        let currentWordSpan = null; 
 
         // Constants
         const LOCAL_STORAGE_KEY = 'delightNovels';
         const VOICE_STORAGE_KEY = 'ttsVoiceName';
+        const RATE_STORAGE_KEY = 'ttsRate'; 
 
         /**
          * Initializes the application.
-         * Switches from external database to local storage.
          */
         function initApp() {
-            // Set the unique user ID (persisted across sessions)
+            // Persist the unique user ID (to allow the user to keep editing *on this device*)
             localStorage.setItem('userId', currentUserId.split('-')[1]);
             console.log("App Initialized. Using local storage for data persistence.");
-            console.log("Local User ID (for debugging):", currentUserId);
 
             // Set the novel list title and load data
-            document.getElementById('novel-list-title').textContent = "My Published Novels";
+            document.getElementById('novel-list-title').textContent = "My Published Novels (Saved in this Browser)";
             loadAndRenderNovels();
             
-            // Setup TTS voices
+            // Setup TTS voices and rate
             setupTtsVoices();
+            setupTtsRateControl();
         }
 
         // --- Local Storage CRUD Operations ---
@@ -292,7 +342,6 @@
 
         /**
          * Loads data from local storage and renders the novel cards.
-         * This replaces the Firestore onSnapshot listener.
          */
         function loadAndRenderNovels() {
             currentNovels = loadNovelsFromStorage();
@@ -336,15 +385,44 @@
                         </div>
                     </div>
                     <div class="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
-                        <p class="text-xs text-slate-500">Novel ID: ${novel.id.substring(0, 8)}...</p>
-                        <button onclick="event.stopPropagation(); deleteNovel('${novel.id}')" 
-                            class="text-red-400 hover:text-red-500 transition text-sm font-medium p-1 rounded-md">
-                            Delete
-                        </button>
+                        <p class="text-xs text-slate-500">Published: ${new Date(novel.createdAt).toLocaleDateString()}</p>
+                        <div class="flex space-x-2">
+                            <button onclick="event.stopPropagation(); editNovel('${novel.id}')" 
+                                class="text-blue-400 hover:text-blue-500 transition text-sm font-medium p-1 rounded-md">
+                                Edit
+                            </button>
+                            <button onclick="event.stopPropagation(); deleteNovel('${novel.id}')" 
+                                class="text-red-400 hover:text-red-500 transition text-sm font-medium p-1 rounded-md">
+                                Delete
+                            </button>
+                        </div>
                     </div>
                 `;
                 container.appendChild(card);
             });
+        }
+
+        // --- Utility Functions for Novel Content ---
+
+        /**
+         * Takes raw text and wraps each word in a span for TTS highlighting.
+         * @param {string} text - The raw novel content.
+         * @returns {string} HTML string with words wrapped in spans.
+         */
+        function prepareContentForTtsHighlight(text) {
+            // Use a regex to capture words and keep original whitespace/newlines
+            // The regex splits by any sequence of whitespace, punctuation, or symbols, but keeps the separators
+            const parts = text.split(/(\s+|[.,!?;:(){}[\]"'-—\u2013\u2014]|\n)/g).filter(p => p.length > 0);
+            
+            return parts.map(part => {
+                // Check if the part is a 'word' (contains letters or numbers)
+                if (/[a-zA-Z0-9]/.test(part)) {
+                    // Span for highlighting
+                    return `<span class="word">${part}</span>`;
+                }
+                // Return whitespace, punctuation, etc. as-is (but escape HTML if necessary)
+                return part.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }).join('');
         }
 
         // --- Event Handlers & Modal Logic ---
@@ -372,7 +450,7 @@
                 tags: tagsInput.split(',').map(t => t.trim()).filter(t => t),
                 content: content,
                 createdAt: new Date().toISOString(),
-                userId: currentUserId 
+                userId: currentUserId // This is the browser's unique ID for internal tracking
             };
             
             // Add to the local array and save
@@ -392,6 +470,7 @@
          */
         function openNovelModal(novelId) {
             stopTtsPlayback(); // Stop any currently playing audio
+            removeHighlight(); // Clear any lingering highlight
 
             activeNovel = currentNovels.find(n => n.id === novelId);
             if (!activeNovel) {
@@ -401,20 +480,90 @@
 
             document.getElementById('view-novel-title').textContent = activeNovel.title;
             document.getElementById('view-novel-author').textContent = activeNovel.author;
-            document.getElementById('view-novel-id').textContent = `ID: ${activeNovel.id}`;
-            document.getElementById('novel-display-content').textContent = activeNovel.content;
+            document.getElementById('view-novel-id').textContent = `ID: ${activeNovel.id.substring(0, 8)}...`;
+            
+            // Prepare content for highlighting
+            document.getElementById('novel-display-content').innerHTML = prepareContentForTtsHighlight(activeNovel.content);
             
             document.getElementById('view-novel-modal').classList.remove('hidden');
         }
 
         /**
-         * Deletes the currently active novel after confirmation.
-         * @param {string} [novelId] - The ID of the novel to delete (optional, defaults to active novel).
+         * Opens the modal to edit a novel.
+         * @param {string} novelId - The ID of the novel to edit.
          */
-        function deleteNovel(novelId = null) {
+        function editNovel(novelId) {
+            stopTtsPlayback();
+            document.getElementById('view-novel-modal').classList.add('hidden'); // Close view modal
+
+            const novelToEdit = currentNovels.find(n => n.id === novelId);
+
+            if (!novelToEdit) {
+                showMessageBox("Error", "Novel not found for editing.", false);
+                return;
+            }
+
+            // Populate Edit Modal
+            document.getElementById('edit-novel-id').value = novelToEdit.id;
+            document.getElementById('edit-novel-title').value = novelToEdit.title;
+            document.getElementById('edit-novel-author').value = novelToEdit.author;
+            document.getElementById('edit-novel-tags').value = Array.isArray(novelToEdit.tags) ? novelToEdit.tags.join(', ') : novelToEdit.tags || '';
+            document.getElementById('edit-novel-content-textarea').value = novelToEdit.content;
+            document.getElementById('edit-novel-title-display').textContent = novelToEdit.title;
+
+            document.getElementById('edit-novel-modal').classList.remove('hidden');
+        }
+
+        /**
+         * Handles the form submission for editing an existing novel.
+         */
+        function handleNovelEdit(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('edit-novel-id').value;
+            const title = document.getElementById('edit-novel-title').value.trim();
+            const author = document.getElementById('edit-novel-author').value.trim();
+            const tagsInput = document.getElementById('edit-novel-tags').value.trim();
+            const content = document.getElementById('edit-novel-content-textarea').value.trim();
+
+            if (!title || !author || !content) {
+                showMessageBox("Validation Error", "Please fill in the title, author, and chapter content.", false);
+                return;
+            }
+
+            const index = currentNovels.findIndex(n => n.id === id);
+
+            if (index > -1) {
+                // Update the novel object
+                currentNovels[index] = {
+                    ...currentNovels[index],
+                    title: title,
+                    author: author,
+                    tags: tagsInput.split(',').map(t => t.trim()).filter(t => t),
+                    content: content,
+                    updatedAt: new Date().toISOString()
+                };
+
+                saveNovelsToStorage(currentNovels);
+
+                // Close modal and refresh UI
+                document.getElementById('edit-novel-modal').classList.add('hidden');
+                loadAndRenderNovels();
+                showMessageBox("Success!", "Your novel has been updated successfully.", false);
+            } else {
+                 showMessageBox("Error", "Novel ID not found for update.", false);
+            }
+        }
+
+
+        /**
+         * Deletes the currently active novel after confirmation.
+         * @param {string} novelId - The ID of the novel to delete.
+         */
+        function deleteNovel(novelId) {
             stopTtsPlayback();
 
-            const idToDelete = novelId || (activeNovel ? activeNovel.id : null);
+            const idToDelete = novelId;
             if (!idToDelete) {
                 showMessageBox("Error", "No novel selected for deletion.", false);
                 return;
@@ -488,7 +637,37 @@
             }
         }
 
-        // --- Text-to-Speech (TTS) Logic (Free, Browser Native) ---
+        // --- Text-to-Speech (TTS) Logic ---
+
+        /**
+         * Initializes the TTS rate control slider with the last saved value.
+         */
+        function setupTtsRateControl() {
+            const storedRate = localStorage.getItem(RATE_STORAGE_KEY);
+            if (storedRate) {
+                currentRate = parseFloat(storedRate);
+            }
+            document.getElementById('tts-rate-slider').value = currentRate;
+            document.getElementById('tts-rate-value').textContent = `${currentRate.toFixed(1)}x`;
+        }
+
+        /**
+         * Updates the display value and saves the TTS rate.
+         * @param {string} rateValue - The new rate value from the slider.
+         */
+        function updateTtsRateValue(rateValue) {
+            currentRate = parseFloat(rateValue);
+            localStorage.setItem(RATE_STORAGE_KEY, currentRate.toString());
+            document.getElementById('tts-rate-value').textContent = `${currentRate.toFixed(1)}x`;
+            
+            // If speaking, cancel and restart with the new rate for immediate effect
+            if (speechSynth.speaking) {
+                // Toggle stops and then starts in the next line
+                stopTtsPlayback(); 
+                toggleTtsPlayback(document.getElementById('tts-play-button'));
+            }
+        }
+
 
         /**
          * Populates the TTS voice selector dropdown.
@@ -534,6 +713,18 @@
         }
 
         /**
+         * Removes the highlighting from all words.
+         */
+        function removeHighlight() {
+            const contentContainer = document.getElementById('novel-display-content');
+            // Remove the highlight class from all spans
+            contentContainer.querySelectorAll('.highlight-word').forEach(span => {
+                span.classList.remove('highlight-word');
+            });
+            currentWordSpan = null;
+        }
+
+        /**
          * Starts or stops the native TTS playback.
          * @param {HTMLElement} button - The button element that was clicked.
          */
@@ -544,9 +735,12 @@
                 stopTtsPlayback();
                 return;
             }
-
+            
+            // Remove any old highlights before starting a new one
+            removeHighlight(); 
+            
             // Get content and selected voice
-            const content = document.getElementById('novel-display-content').textContent;
+            const content = activeNovel.content; // Use the raw content for the TTS engine
             const voiceName = document.getElementById('tts-voice-select').value;
             const voice = speechSynth.getVoices().find(v => v.name === voiceName);
 
@@ -561,29 +755,62 @@
             // Setup speech utterance
             speechSynthesisUtterance = new SpeechSynthesisUtterance(content);
             speechSynthesisUtterance.voice = voice;
-            speechSynthesisUtterance.rate = 1.0;
+            speechSynthesisUtterance.rate = currentRate; // Apply the selected rate
             speechSynthesisUtterance.pitch = 1.0;
             
+            const words = document.getElementById('novel-display-content').querySelectorAll('.word');
+            let wordIndex = 0;
+
             speechSynthesisUtterance.onstart = () => {
                 button.textContent = 'Stop Audio 🛑';
                 button.classList.remove('bg-green-600', 'hover:bg-green-700');
                 button.classList.add('bg-red-600', 'hover:bg-red-700');
             };
 
+            // Highlight the word being spoken
+            speechSynthesisUtterance.onboundary = (event) => {
+                // event.name is 'word' for a word boundary
+                if (event.name === 'word') {
+                    // Check if the current word index is within the bounds of the rendered words
+                    if (wordIndex < words.length) {
+                        // 1. Remove previous highlight
+                        if (currentWordSpan) {
+                            currentWordSpan.classList.remove('highlight-word');
+                        }
+
+                        // 2. Apply new highlight
+                        currentWordSpan = words[wordIndex];
+                        currentWordSpan.classList.add('highlight-word');
+                        
+                        // 3. Scroll to the highlighted word for better UX
+                        currentWordSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        
+                        wordIndex++;
+                    }
+                }
+            };
+
             speechSynthesisUtterance.onend = () => {
                 stopTtsPlayback();
+            };
+            
+            speechSynthesisUtterance.onerror = (event) => {
+                console.error('Speech synthesis error:', event);
+                stopTtsPlayback();
+                showMessageBox("TTS Error", `Could not play audio: ${event.error}`, false);
             };
 
             speechSynth.speak(speechSynthesisUtterance);
         }
 
         /**
-         * Stops the native TTS playback and resets the button.
+         * Stops the native TTS playback and resets the button and highlights.
          */
         function stopTtsPlayback() {
             if (speechSynth.speaking) {
                 speechSynth.cancel();
             }
+            removeHighlight(); // Clear highlight when stopped
             const button = document.getElementById('tts-play-button');
             if (button) {
                 button.textContent = 'Play Audio 🔊';
@@ -594,7 +821,6 @@
 
         // Initialize the application on page load
         window.onload = initApp;
-
     </script>
 </body>
 </html>
