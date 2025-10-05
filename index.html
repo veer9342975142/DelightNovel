@@ -57,7 +57,7 @@
             word-wrap: break-word;
         }
 
-        /* Style for the tracing cursor */
+        /* Style for the tracing cursor (I-beam moves along the text) */
         .highlight-word {
             background-color: rgba(252, 211, 77, 0.3); /* Semi-transparent highlight */
             color: #fcd34d;
@@ -80,6 +80,9 @@
 </head>
 <body class="bg-body-dark text-text-light p-4 md:p-8">
 
+    <div id="mobile-disclaimer" class="fixed bottom-0 left-0 right-0 p-3 bg-yellow-600 text-black font-semibold text-center z-50 md:hidden">
+        ⚠️ **Tip for Mobile Users:** For the best experience, please enable **Desktop Mode** in your browser settings.
+    </div>
     <header class="mb-8 border-b border-indigo-500/50 pb-4">
         <h1 class="text-4xl font-extrabold text-white text-center">
             DelightNovel <span class="text-accent text-lg font-light">Free Publishing & Reader (Local Storage Only)</span>
@@ -157,7 +160,7 @@
                 </div>
                 <div class="mb-6">
                     <label for="novel-edit-key" class="block text-sm font-medium text-text-light mb-1">**Secret Edit Key** (12+ characters recommended)</label>
-                    <input type="password" id="novel-edit-key" required **minlength="12"**
+                    <input type="password" id="novel-edit-key" required minlength="12"
                         class="w-full px-4 py-2 border border-red-600 rounded-lg bg-secondary-dark text-text-light focus:border-red-400 focus:ring focus:ring-red-400/50 transition"
                         placeholder="Create a long, safe key (e.g., SafeKey!42Alpha)">
                 </div>
@@ -226,7 +229,7 @@
 
                     <div class="bg-secondary-dark p-4 rounded-xl shadow-inner border border-slate-700">
                         <h3 class="text-xl font-semibold text-text-light mb-3 border-b border-slate-600 pb-2">Text-to-Speech (Free)</h3>
-                        <p class="text-sm text-slate-400 mb-3">Uses your browser's native text-to-speech engine.</p>
+                        <p class="text-sm text-slate-400 mb-3">Uses your browser's native text-to-speech engine with **Word Highlighting**.</p>
                         <div class="space-y-3">
                             <select id="tts-voice-select" class="w-full px-3 py-2 border border-slate-600 rounded-lg bg-primary-dark text-text-light">
                                 </select>
@@ -511,6 +514,7 @@
          * @returns {string} HTML string with words wrapped in spans.
          */
         function prepareContentForTtsHighlight(text) {
+            // Split by space, newline, and common punctuation marks, keeping the delimiters.
             const parts = text.split(/(\s+|[.,!?;:(){}[\]"'-—\u2013\u2014]|\n)/g).filter(p => p.length > 0);
             
             return parts.map(part => {
@@ -569,7 +573,7 @@
             const author = document.getElementById('novel-author').value.trim();
             const coverImageUrl = document.getElementById('novel-cover-image').value.trim();
             const tagsInput = document.getElementById('novel-tags').value.trim();
-            const editKey = document.getElementById('novel-edit-key').value.trim(); // NEW
+            const editKey = document.getElementById('novel-edit-key').value.trim();
             const content = document.getElementById('novel-content-textarea').value.trim();
 
             if (!title || !author || !content || !editKey) {
@@ -586,12 +590,12 @@
                 id: crypto.randomUUID(),
                 title: title,
                 author: author,
-                coverImageUrl: coverImageUrl, // NEW
-                editKey: editKey, // NEW
+                coverImageUrl: coverImageUrl, 
+                editKey: editKey, 
                 tags: tagsInput.split(',').map(t => t.trim()).filter(t => t),
                 content: content,
                 createdAt: new Date().toISOString(),
-                userId: currentUserId // Kept for local tracking but not for auth
+                userId: currentUserId 
             };
             
             // Add to the local array and save
@@ -601,7 +605,7 @@
             // Close modal and refresh UI
             document.getElementById('add-novel-modal').classList.add('hidden');
             document.getElementById('add-novel-form').reset();
-            loadAndRenderNovels(); // Load and render the full list (clears search)
+            loadAndRenderNovels(); 
             showMessageBox("Success!", "Your novel has been published successfully. **REMEMBER YOUR SECRET KEY!**", false);
         }
 
@@ -648,7 +652,7 @@
             document.getElementById('edit-novel-id').value = novelToEdit.id;
             document.getElementById('edit-novel-title').value = novelToEdit.title;
             document.getElementById('edit-novel-author').value = novelToEdit.author;
-            document.getElementById('edit-novel-cover-image').value = novelToEdit.coverImageUrl || ''; // NEW
+            document.getElementById('edit-novel-cover-image').value = novelToEdit.coverImageUrl || ''; 
             document.getElementById('edit-novel-tags').value = Array.isArray(novelToEdit.tags) ? novelToEdit.tags.join(', ') : novelToEdit.tags || '';
             document.getElementById('edit-novel-content-textarea').value = novelToEdit.content;
             document.getElementById('edit-novel-title-display').textContent = novelToEdit.title;
@@ -665,7 +669,7 @@
             const id = document.getElementById('edit-novel-id').value;
             const title = document.getElementById('edit-novel-title').value.trim();
             const author = document.getElementById('edit-novel-author').value.trim();
-            const coverImageUrl = document.getElementById('edit-novel-cover-image').value.trim(); // NEW
+            const coverImageUrl = document.getElementById('edit-novel-cover-image').value.trim(); 
             const tagsInput = document.getElementById('edit-novel-tags').value.trim();
             const content = document.getElementById('edit-novel-content-textarea').value.trim();
 
@@ -682,7 +686,7 @@
                     ...currentNovels[index],
                     title: title,
                     author: author,
-                    coverImageUrl: coverImageUrl, // UPDATED
+                    coverImageUrl: coverImageUrl, 
                     tags: tagsInput.split(',').map(t => t.trim()).filter(t => t),
                     content: content,
                     updatedAt: new Date().toISOString()
@@ -692,7 +696,7 @@
 
                 // Close modal and refresh UI
                 document.getElementById('edit-novel-modal').classList.add('hidden');
-                loadAndRenderNovels(); // Load and render the full list (clears search)
+                loadAndRenderNovels(); 
                 showMessageBox("Success!", "Your novel has been updated successfully.", false);
             } else {
                  showMessageBox("Error", "Novel ID not found for update.", false);
@@ -719,7 +723,7 @@
                 if (index > -1) {
                     currentNovels.splice(index, 1);
                     saveNovelsToStorage(currentNovels);
-                    loadAndRenderNovels(); // Load and render the full list (clears search)
+                    loadAndRenderNovels(); 
                     
                     // Close view modal if the deleted novel was being viewed
                     if (activeNovel && activeNovel.id === idToDelete) {
@@ -911,7 +915,7 @@
                 button.classList.add('bg-red-600', 'hover:bg-red-700');
             };
 
-            // Highlight the word being spoken
+            // Highlight the word being spoken and scroll it into view
             speechSynthesisUtterance.onboundary = (event) => {
                 // event.name is 'word' for a word boundary
                 if (event.name === 'word') {
@@ -922,11 +926,11 @@
                             currentWordSpan.classList.remove('highlight-word');
                         }
 
-                        // 2. Apply new highlight
+                        // 2. Apply new highlight (This is the I-beam/carrot movement)
                         currentWordSpan = words[wordIndex];
                         currentWordSpan.classList.add('highlight-word');
                         
-                        // 3. Scroll to the highlighted word for better UX
+                        // 3. Scroll to the highlighted word for better UX (Auto-scrolling)
                         currentWordSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         
                         wordIndex++;
